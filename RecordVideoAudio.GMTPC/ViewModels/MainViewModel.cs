@@ -54,6 +54,10 @@ public partial class MainViewModel : ViewModelBase
         HwAccelList = new ObservableCollection<HwAccelType> { HwAccelType.Auto, HwAccelType.NVENC, HwAccelType.QSV, HwAccelType.AMF, HwAccelType.VAAPI, HwAccelType.MediaCodec, HwAccelType.SoftwareCPU };
         CaptureSourceList = new ObservableCollection<CaptureSourceType> { CaptureSourceType.FullScreen, CaptureSourceType.CustomArea, CaptureSourceType.ActiveWindow, CaptureSourceType.CameraPiP };
         Profiles = new ObservableCollection<QualityProfile>(QualityProfile.GetBuiltInProfiles());
+        if (Profiles.Count > 0)
+        {
+            SelectedProfile = Profiles[0];
+        }
 
         // Default folder
         OutputDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Recordings");
@@ -336,7 +340,11 @@ public partial class MainViewModel : ViewModelBase
             OnPropertyChanged(nameof(StatusBadgeBackground));
 
             if (state == RecordingState.Recording)
-                StatusMessage = "🔴 Đang quay phim & thu âm trực tiếp...";
+            {
+                StatusMessage = string.IsNullOrEmpty(_engine.LastErrorMessage)
+                    ? "🔴 Đang quay phim & thu âm trực tiếp..."
+                    : $"⚠️ Đang quay phim (Lưu ý: {_engine.LastErrorMessage})";
+            }
             else if (state == RecordingState.Paused)
                 StatusMessage = "⏸️ Quá trình quay đang tạm dừng.";
             else if (state == RecordingState.Idle)
@@ -401,7 +409,15 @@ public partial class MainViewModel : ViewModelBase
     {
         if (CurrentState == RecordingState.Idle) return;
         string savedFile = await _engine.StopRecordingAsync();
-        StatusMessage = $"{_loc.GetText("SavedTo")} {savedFile}";
+        if (File.Exists(savedFile))
+        {
+            var fi = new FileInfo(savedFile);
+            StatusMessage = $"{_loc.GetText("SavedTo")} {savedFile} ({fi.Length / (1024.0 * 1024.0):F2} MB)";
+        }
+        else
+        {
+            StatusMessage = $"{_loc.GetText("SavedTo")} {savedFile}";
+        }
     }
 
     [RelayCommand]

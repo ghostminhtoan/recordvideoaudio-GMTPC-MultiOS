@@ -53,6 +53,8 @@ public class QualityProfile
     public string NameVi { get; set; } = string.Empty;
     public string DescriptionEn { get; set; } = string.Empty;
     public string DescriptionVi { get; set; } = string.Empty;
+    public string DisplayName => Localization.LocalizationService.Instance.CurrentLanguage == Localization.LanguageMode.Vietnamese ? NameVi : NameEn;
+    public override string ToString() => DisplayName;
     public RecordingConfig Config { get; set; } = new();
 
     public static QualityProfile[] GetBuiltInProfiles() =>

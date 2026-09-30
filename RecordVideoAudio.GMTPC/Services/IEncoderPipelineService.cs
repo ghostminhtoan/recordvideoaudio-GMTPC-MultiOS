@@ -1,7 +1,9 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using RecordVideoAudio.GMTPC.Models;
 
 namespace RecordVideoAudio.GMTPC.Services;
@@ -9,12 +11,18 @@ namespace RecordVideoAudio.GMTPC.Services;
 public interface IEncoderPipelineService
 {
     string BuildCommandLine(RecordingConfig config, string outputPath);
+    string BuildArguments(RecordingConfig config, string outputPath);
     string GetOutputExtension(ContainerFormat format);
     string GenerateDefaultFileName(ContainerFormat format);
+    string? FindFFmpegExecutable();
+    string? GetDetectedAudioDevice();
 }
 
 public class FFmpegPipelineService : IEncoderPipelineService
 {
+    private static string? _cachedAudioDevice = null;
+    private static bool _audioDeviceQueried = false;
+
     public string GetOutputExtension(ContainerFormat format) => format switch
     {
         ContainerFormat.MKV => ".mkv",
@@ -28,34 +36,117 @@ public class FFmpegPipelineService : IEncoderPipelineService
         return $"GMTPC_Record_{timestamp}{GetOutputExtension(format)}";
     }
 
+    public string? FindFFmpegExecutable()
+    {
+        // 1. Check in application base directory
+        string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        string directPath = Path.Combine(baseDir, "ffmpeg.exe");
+        if (File.Exists(directPath)) return directPath;
+
+        // 2. Check in dist\windows directory
+        string distWin = Path.Combine(baseDir, "..", "..", "..", "..", "dist", "windows", "ffmpeg.exe");
+        if (File.Exists(distWin)) return Path.GetFullPath(distWin);
+
+        // 3. Check AppData local vibe / installed paths
+        string userLocal = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        string vibePath = Path.Combine(userLocal, "vibe", "ffmpeg.exe");
+        if (File.Exists(vibePath)) return vibePath;
+
+        // 4. Check PATH environment
+        string? pathEnv = Environment.GetEnvironmentVariable("PATH");
+        if (pathEnv != null)
+        {
+            foreach (var part in pathEnv.Split(Path.PathSeparator))
+            {
+                try
+                {
+                    string candidate = Path.Combine(part.Trim(), RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "ffmpeg.exe" : "ffmpeg");
+                    if (File.Exists(candidate)) return candidate;
+                }
+                catch { }
+            }
+        }
+
+        return null;
+    }
+
+    public string? GetDetectedAudioDevice()
+    {
+        if (_audioDeviceQueried) return _cachedAudioDevice;
+        _audioDeviceQueried = true;
+
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            return null;
+
+        string? ffmpeg = FindFFmpegExecutable();
+        if (string.IsNullOrEmpty(ffmpeg)) return null;
+
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = ffmpeg,
+                Arguments = "-list_devices true -f dshow -i dummy",
+                UseShellExecute = false,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            using var p = Process.Start(psi);
+            if (p != null)
+            {
+                string stderr = p.StandardError.ReadToEnd();
+                p.WaitForExit(3000);
+
+                var match = Regex.Match(stderr, "\"([^\"]+)\"\\s*\\(audio\\)");
+                if (match.Success)
+                {
+                    _cachedAudioDevice = match.Groups[1].Value;
+                }
+            }
+        }
+        catch { }
+
+        return _cachedAudioDevice;
+    }
+
     public string BuildCommandLine(RecordingConfig config, string outputPath)
     {
-        var sb = new StringBuilder();
-        sb.Append("ffmpeg -y ");
+        return $"ffmpeg {BuildArguments(config, outputPath)}";
+    }
 
-        // 1. Platform-specific Capture Input
+    public string BuildArguments(RecordingConfig config, string outputPath)
+    {
+        var sb = new StringBuilder();
+        sb.Append("-y ");
+
+        string? audioDevice = (config.RecordMicrophone || config.RecordSystemAudio) ? GetDetectedAudioDevice() : null;
+
+        // 1. Capture Inputs
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            sb.Append($"-f gdigrab -framerate {config.Fps} -i desktop ");
-            if (config.RecordSystemAudio)
+            sb.Append($"-f gdigrab -framerate {config.Fps} -draw_mouse 1 -i desktop ");
+
+            // Include real audio device if detected
+            if (audioDevice != null && (config.RecordMicrophone || config.RecordSystemAudio))
             {
-                sb.Append("-f dshow -i audio=\"virtual-audio-capturer\" ");
+                sb.Append($"-f dshow -i audio=\"{audioDevice}\" ");
             }
         }
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
-            sb.Append($"-f x11grab -framerate {config.Fps} -i :0.0 ");
-            if (config.RecordSystemAudio)
+            sb.Append($"-f x11grab -framerate {config.Fps} -draw_mouse 1 -i :0.0 ");
+            if (config.RecordSystemAudio || config.RecordMicrophone)
             {
                 sb.Append("-f pulse -i default ");
             }
         }
-        else // Android / Mobile
+        else
         {
             sb.Append($"-f android_camera -framerate {config.Fps} -i 0 ");
         }
 
-        // 2. Video Codec Selection & Hardware Acceleration
+        // 2. Video Codec
         string videoEncoder = config.VideoCodec switch
         {
             VideoCodecType.H264 => config.HwAcceleration switch
@@ -65,7 +156,7 @@ public class FFmpegPipelineService : IEncoderPipelineService
                 HwAccelType.AMF => "h264_amf",
                 HwAccelType.VAAPI => "h264_vaapi",
                 HwAccelType.MediaCodec => "h264_mediacodec",
-                _ => "libx264"
+                _ => "h264_nvenc" // Default to NVENC on modern Windows or fallback
             },
             VideoCodecType.HEVC => config.HwAcceleration switch
             {
@@ -74,22 +165,29 @@ public class FFmpegPipelineService : IEncoderPipelineService
                 HwAccelType.AMF => "hevc_amf",
                 HwAccelType.VAAPI => "hevc_vaapi",
                 HwAccelType.MediaCodec => "hevc_mediacodec",
-                _ => "libx265"
+                _ => "hevc_nvenc"
             },
-            _ => "libx264"
+            _ => "h264_nvenc"
         };
         sb.Append($"-c:v {videoEncoder} ");
 
-        // 3. Encoder Preset
+        // 3. Preset
         string preset = config.Preset.ToString().ToLowerInvariant();
         sb.Append($"-preset {preset} ");
 
-        // 4. Rate Control Modes (CBR, VBR, CQP, CRF)
+        // 4. Rate Control Modes
         bool isNvenc = videoEncoder.Contains("nvenc", StringComparison.OrdinalIgnoreCase);
         switch (config.RateControl)
         {
             case RateControlMode.CRF:
-                sb.Append($"-crf {config.CrfValue} ");
+                if (isNvenc)
+                {
+                    sb.Append($"-cq {config.CrfValue} -qmin {Math.Max(0, config.CrfValue - 3)} -qmax {Math.Min(51, config.CrfValue + 3)} ");
+                }
+                else
+                {
+                    sb.Append($"-crf {config.CrfValue} ");
+                }
                 break;
 
             case RateControlMode.CQP:
@@ -115,16 +213,19 @@ public class FFmpegPipelineService : IEncoderPipelineService
         // Pixel format
         sb.Append("-pix_fmt yuv420p ");
 
-        // 5. Audio Codec
-        string audioEncoder = config.AudioCodec switch
+        // 5. Audio Codec (only if audio input is present)
+        if (audioDevice != null && (config.RecordMicrophone || config.RecordSystemAudio))
         {
-            AudioCodecType.AAC => "aac -b:a 192k",
-            AudioCodecType.MP3 => "libmp3lame -b:a 192k",
-            _ => "aac -b:a 192k"
-        };
-        sb.Append($"-c:a {audioEncoder} ");
+            string audioEncoder = config.AudioCodec switch
+            {
+                AudioCodecType.AAC => "aac -b:a 192k",
+                AudioCodecType.MP3 => "mp3_mf -b:a 192k",
+                _ => "aac -b:a 192k"
+            };
+            sb.Append($"-c:a {audioEncoder} ");
+        }
 
-        // 6. Container Format Specific Flags
+        // 6. Container Format Flags
         if (config.Format == ContainerFormat.MP4)
         {
             sb.Append("-movflags +faststart ");

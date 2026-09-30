@@ -22,6 +22,11 @@ dotnet publish "$rootDir\RecordVideoAudio.GMTPC.Desktop\RecordVideoAudio.GMTPC.D
 if (Test-Path "$winDir\RecordVideoAudio.GMTPC.Desktop.exe") {
     Copy-Item "$winDir\RecordVideoAudio.GMTPC.Desktop.exe" "$distDir\RecordVideoAudio.GMTPC.exe" -Force
 }
+$vibeDir = "C:\Users\Admin\AppData\Local\vibe"
+if (Test-Path "$vibeDir\ffmpeg.exe") {
+    Copy-Item "$vibeDir\ffmpeg.exe", "$vibeDir\*.dll" $winDir -Force -ErrorAction SilentlyContinue
+    Copy-Item "$vibeDir\ffmpeg.exe" "$distDir\ffmpeg.exe" -Force -ErrorAction SilentlyContinue
+}
 
 # 2. Xuất bản Linux x64
 Write-Host "`n[2/3] Đóng gói nền tảng Linux (x64)..." -ForegroundColor Green

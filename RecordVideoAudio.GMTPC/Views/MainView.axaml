@@ -17,7 +17,9 @@
                 <!-- App Title -->
                 <StackPanel Grid.Column="0" Orientation="Vertical">
                     <StackPanel Orientation="Horizontal" Spacing="10">
-                        <TextBlock Text="🎥" FontSize="20" VerticalAlignment="Center" />
+                        <Border Width="20" Height="20" Background="#1E293B" BorderBrush="#00F0FF" BorderThickness="1.5" CornerRadius="10" VerticalAlignment="Center">
+                            <Ellipse Width="8" Height="8" Fill="#FF1744" />
+                        </Border>
                         <TextBlock Text="{Binding AppTitleText}" FontSize="16" FontWeight="Bold" Foreground="#00F0FF" VerticalAlignment="Center" />
                         <Border Background="#1E3A5F" CornerRadius="4" Padding="6,2" VerticalAlignment="Center">
                             <TextBlock Text="{Binding PlatformBadge}" FontSize="10" FontWeight="SemiBold" Foreground="#64B5F6" />
@@ -60,7 +62,7 @@
                                       HorizontalAlignment="Stretch">
                                 <ComboBox.ItemTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding NameVi}" />
+                                        <TextBlock Text="{Binding DisplayName}" />
                                     </DataTemplate>
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
