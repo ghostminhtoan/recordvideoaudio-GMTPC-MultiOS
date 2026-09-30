@@ -1,0 +1,328 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:RecordVideoAudio.GMTPC.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="780"
+             x:Class="RecordVideoAudio.GMTPC.Views.MainView"
+             x:DataType="vm:MainViewModel"
+             Background="#0B0F19">
+
+    <Grid RowDefinitions="Auto,*,Auto" Margin="16">
+
+        <!-- ================= TOP HEADER BAR ================= -->
+        <Border Grid.Row="0" Background="#131B2E" CornerRadius="10" Padding="14,10" Margin="0,0,0,12"
+                BorderBrush="#1F2D4A" BorderThickness="1">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+                <!-- App Title -->
+                <StackPanel Grid.Column="0" Orientation="Vertical">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="🎥" FontSize="20" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding AppTitleText}" FontSize="16" FontWeight="Bold" Foreground="#00F0FF" VerticalAlignment="Center" />
+                        <Border Background="#1E3A5F" CornerRadius="4" Padding="6,2" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding PlatformBadge}" FontSize="10" FontWeight="SemiBold" Foreground="#64B5F6" />
+                        </Border>
+                    </StackPanel>
+                    <TextBlock Text="{Binding SubtitleText}" FontSize="11" Foreground="#8892B0" Margin="32,2,0,0" />
+                </StackPanel>
+
+                <!-- Recording Status Badge -->
+                <Border Grid.Column="2" CornerRadius="6" Padding="12,5" Margin="0,0,10,0" VerticalAlignment="Center"
+                        Background="{Binding StatusBadgeBackground}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Ellipse Width="10" Height="10" 
+                                 Fill="{Binding StatusBadgeColor}" />
+                        <TextBlock Text="{Binding StatusBadgeText}" FontWeight="Bold" FontSize="12" Foreground="#FFFFFF" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Language Toggle Button -->
+                <Button Grid.Column="3" Command="{Binding ToggleLanguageCommand}"
+                        Background="#1E293B" Foreground="#00F0FF" BorderBrush="#00F0FF" BorderThickness="1"
+                        CornerRadius="6" Padding="10,5" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding CurrentLanguageText}" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- ================= MAIN BODY (2 COLUMNS) ================= -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <Grid ColumnDefinitions="*,*" Margin="0,0,0,12">
+
+                <!-- ===== LEFT PANEL: VIDEO & RATE CONTROL STUDIO ===== -->
+                <StackPanel Grid.Column="0" Spacing="12" Margin="0,0,6,0">
+
+                    <!-- Profile Presets -->
+                    <Border Background="#131B2E" CornerRadius="10" Padding="14" BorderBrush="#1F2D4A" BorderThickness="1">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="🎯 CẤU HÌNH NHANH (PROFILES)" FontWeight="Bold" FontSize="12" Foreground="#FFB800" />
+                            <ComboBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}"
+                                      HorizontalAlignment="Stretch">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding NameVi}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Format & Codecs -->
+                    <Border Background="#131B2E" CornerRadius="10" Padding="14" BorderBrush="#1F2D4A" BorderThickness="1">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="📦 ĐỊNH DẠNG &amp; BỘ MÃ HÓA (CONTAINER &amp; CODECS)" FontWeight="Bold" FontSize="12" Foreground="#00F0FF" />
+
+                            <!-- Container Format: MKV / MP4 -->
+                            <Grid ColumnDefinitions="*,*">
+                                <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,6,0">
+                                    <TextBlock Text="{Binding LabelContainerFormat}" FontSize="11" Foreground="#A0AEC0" />
+                                    <ComboBox ItemsSource="{Binding FormatList}" SelectedItem="{Binding SelectedFormat}"
+                                              HorizontalAlignment="Stretch" />
+                                </StackPanel>
+
+                                <!-- Video Codec: H264 / HEVC -->
+                                <StackPanel Grid.Column="1" Spacing="4" Margin="6,0,0,0">
+                                    <TextBlock Text="{Binding LabelVideoCodec}" FontSize="11" Foreground="#A0AEC0" />
+                                    <ComboBox ItemsSource="{Binding VideoCodecList}" SelectedItem="{Binding SelectedVideoCodec}"
+                                              HorizontalAlignment="Stretch" />
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Audio Codec: AAC / MP3 -->
+                            <Grid ColumnDefinitions="*,*">
+                                <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,6,0">
+                                    <TextBlock Text="{Binding LabelAudioCodec}" FontSize="11" Foreground="#A0AEC0" />
+                                    <ComboBox ItemsSource="{Binding AudioCodecList}" SelectedItem="{Binding SelectedAudioCodec}"
+                                              HorizontalAlignment="Stretch" />
+                                </StackPanel>
+
+                                <!-- Hardware Acceleration -->
+                                <StackPanel Grid.Column="1" Spacing="4" Margin="6,0,0,0">
+                                    <TextBlock Text="{Binding LabelHwAcceleration}" FontSize="11" Foreground="#A0AEC0" />
+                                    <ComboBox ItemsSource="{Binding HwAccelList}" SelectedItem="{Binding SelectedHwAccel}"
+                                              HorizontalAlignment="Stretch" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Rate Control Studio (CBR, VBR, CQP, CRF) -->
+                    <Border Background="#131B2E" CornerRadius="10" Padding="14" BorderBrush="#1F2D4A" BorderThickness="1">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="⚡ KIỂM SOÁT TỐC ĐỘ BIT (RATE CONTROL STUDIO)" FontWeight="Bold" FontSize="12" Foreground="#00E676" />
+
+                            <!-- Mode Selector -->
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="{Binding LabelRateControl}" FontSize="11" Foreground="#A0AEC0" />
+                                <ComboBox ItemsSource="{Binding RateControlList}" SelectedItem="{Binding SelectedRateControl}"
+                                          HorizontalAlignment="Stretch" />
+                            </StackPanel>
+
+                            <!-- Dynamic Parameters -->
+                            <!-- 1. CRF Slider -->
+                            <StackPanel Spacing="4" IsVisible="{Binding IsCrfMode}">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Text="Chỉ số chất lượng CRF (0 = Vô hao, 18-23 = Chuẩn nét, 51 = Thấp):" FontSize="11" Foreground="#A0AEC0" />
+                                    <TextBlock Grid.Column="1" Text="{Binding CrfValue}" FontWeight="Bold" Foreground="#00F0FF" />
+                                </Grid>
+                                <Slider Minimum="0" Maximum="51" Value="{Binding CrfValue}" TickFrequency="1" IsSnapToTickEnabled="True" />
+                            </StackPanel>
+
+                            <!-- 2. CQP Slider -->
+                            <StackPanel Spacing="4" IsVisible="{Binding IsCqpMode}">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Text="Lượng tử hóa cố định CQP (GPU NVENC/QSV/AMF):" FontSize="11" Foreground="#A0AEC0" />
+                                    <TextBlock Grid.Column="1" Text="{Binding CqpValue}" FontWeight="Bold" Foreground="#FFB800" />
+                                </Grid>
+                                <Slider Minimum="0" Maximum="51" Value="{Binding CqpValue}" TickFrequency="1" IsSnapToTickEnabled="True" />
+                            </StackPanel>
+
+                            <!-- 3. CBR / VBR Bitrate Slider -->
+                            <StackPanel Spacing="4" IsVisible="{Binding IsCbrMode}">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Text="Tốc độ bit cố định (CBR Bitrate):" FontSize="11" Foreground="#A0AEC0" />
+                                    <TextBlock Grid.Column="1" Text="{Binding BitrateKbps, StringFormat='{}{0} kbps'}" FontWeight="Bold" Foreground="#00E676" />
+                                </Grid>
+                                <Slider Minimum="1000" Maximum="50000" Value="{Binding BitrateKbps}" TickFrequency="500" IsSnapToTickEnabled="True" />
+                            </StackPanel>
+
+                            <!-- 4. VBR Target & Max Bitrate Slider -->
+                            <StackPanel Spacing="4" IsVisible="{Binding IsVbrMode}">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Text="Bitrate mục tiêu (Target):" FontSize="11" Foreground="#A0AEC0" />
+                                    <TextBlock Grid.Column="1" Text="{Binding BitrateKbps, StringFormat='{}{0} kbps'}" FontWeight="Bold" Foreground="#00E676" />
+                                </Grid>
+                                <Slider Minimum="1000" Maximum="50000" Value="{Binding BitrateKbps}" TickFrequency="500" IsSnapToTickEnabled="True" />
+
+                                <Grid ColumnDefinitions="*,Auto" Margin="0,6,0,0">
+                                    <TextBlock Text="Bitrate tối đa (Max Bitrate):" FontSize="11" Foreground="#A0AEC0" />
+                                    <TextBlock Grid.Column="1" Text="{Binding MaxBitrateKbps, StringFormat='{}{0} kbps'}" FontWeight="Bold" Foreground="#FF1744" />
+                                </Grid>
+                                <Slider Minimum="2000" Maximum="80000" Value="{Binding MaxBitrateKbps}" TickFrequency="500" IsSnapToTickEnabled="True" />
+                            </StackPanel>
+
+                            <!-- FPS & Preset -->
+                            <Grid ColumnDefinitions="*,*">
+                                <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,6,0">
+                                    <TextBlock Text="{Binding LabelFps}" FontSize="11" Foreground="#A0AEC0" />
+                                    <ComboBox ItemsSource="{Binding FpsList}" SelectedItem="{Binding SelectedFps}"
+                                              HorizontalAlignment="Stretch" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="1" Spacing="4" Margin="6,0,0,0">
+                                    <TextBlock Text="{Binding LabelPreset}" FontSize="11" Foreground="#A0AEC0" />
+                                    <ComboBox ItemsSource="{Binding PresetList}" SelectedItem="{Binding SelectedPreset}"
+                                              HorizontalAlignment="Stretch" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- ===== RIGHT PANEL: CAPTURE SOURCE & AUDIO MIXER ===== -->
+                <StackPanel Grid.Column="1" Spacing="12" Margin="6,0,0,0">
+
+                    <!-- Capture Source -->
+                    <Border Background="#131B2E" CornerRadius="10" Padding="14" BorderBrush="#1F2D4A" BorderThickness="1">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="🖥️ NGUỒN THU HÌNH (CAPTURE SOURCE)" FontWeight="Bold" FontSize="12" Foreground="#00F0FF" />
+                            <ComboBox ItemsSource="{Binding CaptureSourceList}" SelectedItem="{Binding SelectedCaptureSource}"
+                                      HorizontalAlignment="Stretch" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Dual Audio Mixer -->
+                    <Border Background="#131B2E" CornerRadius="10" Padding="14" BorderBrush="#1F2D4A" BorderThickness="1">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="🎚️ BÀN TRỘN ÂM THANH KÉP (DUAL AUDIO MIXER)" FontWeight="Bold" FontSize="12" Foreground="#FFB800" />
+
+                            <!-- Channel 1: System Audio Loopback -->
+                            <Border Background="#0D1322" CornerRadius="8" Padding="10" BorderBrush="#1F2D4A" BorderThickness="1">
+                                <StackPanel Spacing="6">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <CheckBox Content="{Binding LabelSystemAudio}" IsChecked="{Binding SystemAudioEnabled}"
+                                                  FontWeight="SemiBold" FontSize="11" Foreground="#FFFFFF" />
+                                        <TextBlock Grid.Column="1" Text="{Binding SystemAudioVolume, StringFormat='{}{0}%'}" 
+                                                   FontSize="11" FontWeight="Bold" Foreground="#00F0FF" />
+                                    </Grid>
+                                    <Slider Minimum="0" Maximum="100" Value="{Binding SystemAudioVolume}" IsEnabled="{Binding SystemAudioEnabled}" />
+                                    <!-- VU Meter Bar -->
+                                    <ProgressBar Minimum="0" Maximum="100" Value="{Binding SystemAudioLevel}" Height="6"
+                                                 Foreground="#00E676" Background="#1E293B" CornerRadius="3" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Channel 2: Microphone Input -->
+                            <Border Background="#0D1322" CornerRadius="8" Padding="10" BorderBrush="#1F2D4A" BorderThickness="1">
+                                <StackPanel Spacing="6">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <CheckBox Content="{Binding LabelMicrophone}" IsChecked="{Binding MicAudioEnabled}"
+                                                  FontWeight="SemiBold" FontSize="11" Foreground="#FFFFFF" />
+                                        <TextBlock Grid.Column="1" Text="{Binding MicAudioVolume, StringFormat='{}{0}%'}" 
+                                                   FontSize="11" FontWeight="Bold" Foreground="#FFB800" />
+                                    </Grid>
+                                    <Slider Minimum="0" Maximum="100" Value="{Binding MicAudioVolume}" IsEnabled="{Binding MicAudioEnabled}" />
+                                    <!-- VU Meter Bar -->
+                                    <ProgressBar Minimum="0" Maximum="100" Value="{Binding MicAudioLevel}" Height="6"
+                                                 Foreground="#FFB800" Background="#1E293B" CornerRadius="3" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Realtime Command Pipeline Preview -->
+                    <Border Background="#131B2E" CornerRadius="10" Padding="14" BorderBrush="#1F2D4A" BorderThickness="1">
+                        <StackPanel Spacing="8">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="💻 LỆNH PIPELINE THỜI GIAN THỰC (FFMPEG ENGINE)" FontWeight="Bold" FontSize="11" Foreground="#00F0FF" />
+                            </Grid>
+                            <TextBox Text="{Binding CommandLinePreview}" IsReadOnly="True" TextWrapping="Wrap"
+                                     FontFamily="Consolas, Cascadia Code, Courier New" FontSize="10" Height="70"
+                                     Background="#0A0E1A" Foreground="#64B5F6" BorderBrush="#1F2D4A" CornerRadius="6" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Status Log Message -->
+                    <Border Background="#0F172A" CornerRadius="8" Padding="10" BorderBrush="#1E293B" BorderThickness="1">
+                        <TextBlock Text="{Binding StatusMessage}" FontSize="11" Foreground="#94A3B8" TextWrapping="Wrap" />
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+
+        <!-- ================= BOTTOM CONTROL DECK ================= -->
+        <Border Grid.Row="2" Background="#131B2E" CornerRadius="10" Padding="16,12"
+                BorderBrush="#1F2D4A" BorderThickness="1">
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
+
+                <!-- 1. Start / Stop Recording Button -->
+                <Button Grid.Column="0" Command="{Binding StartRecordingCommand}" IsVisible="{Binding IsIdle}"
+                        Background="#FF1744" Foreground="#FFFFFF" FontWeight="Bold" FontSize="13"
+                        CornerRadius="8" Padding="20,10" Margin="0,0,10,0">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="🔴" />
+                        <TextBlock Text="{Binding BtnStartText}" />
+                    </StackPanel>
+                </Button>
+
+                <Button Grid.Column="0" Command="{Binding StopRecordingCommand}" IsVisible="{Binding !IsIdle}"
+                        Background="#D50000" Foreground="#FFFFFF" FontWeight="Bold" FontSize="13"
+                        CornerRadius="8" Padding="20,10" Margin="0,0,10,0">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="⏹️" />
+                        <TextBlock Text="{Binding BtnStopText}" />
+                    </StackPanel>
+                </Button>
+
+                <!-- 2. Pause / Resume Button -->
+                <Button Grid.Column="1" Command="{Binding TogglePauseResumeCommand}" IsEnabled="{Binding !IsIdle}"
+                        Background="#1E293B" Foreground="#FFB800" FontWeight="SemiBold" FontSize="12"
+                        CornerRadius="8" Padding="14,10" Margin="0,0,16,0" BorderBrush="#FFB800" BorderThickness="1">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="⏸️" />
+                        <TextBlock Text="{Binding BtnPauseText}" />
+                    </StackPanel>
+                </Button>
+
+                <!-- 3. Timer & Live Statistics -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="24" VerticalAlignment="Center">
+                    <!-- Timer -->
+                    <StackPanel Orientation="Vertical">
+                        <TextBlock Text="THỜI GIAN QUAY" FontSize="9" FontWeight="Bold" Foreground="#8892B0" />
+                        <TextBlock Text="{Binding ElapsedTimeString}" FontSize="22" FontWeight="Bold" 
+                                   FontFamily="Consolas, Cascadia Code, Courier New" Foreground="#00F0FF" />
+                    </StackPanel>
+
+                    <!-- Estimated File Size -->
+                    <StackPanel Orientation="Vertical">
+                        <TextBlock Text="DUNG LƯỢNG" FontSize="9" FontWeight="Bold" Foreground="#8892B0" />
+                        <TextBlock Text="{Binding FileSizeString}" FontSize="15" FontWeight="SemiBold" Foreground="#00E676" />
+                    </StackPanel>
+
+                    <!-- Current FPS -->
+                    <StackPanel Orientation="Vertical">
+                        <TextBlock Text="FPS HIỆN TẠI" FontSize="9" FontWeight="Bold" Foreground="#8892B0" />
+                        <TextBlock Text="{Binding CurrentFpsString}" FontSize="15" FontWeight="SemiBold" Foreground="#FFB800" />
+                    </StackPanel>
+
+                    <!-- Frames Count -->
+                    <StackPanel Orientation="Vertical">
+                        <TextBlock Text="KHUNG HÌNH" FontSize="9" FontWeight="Bold" Foreground="#8892B0" />
+                        <TextBlock Text="{Binding RecordedFramesString}" FontSize="13" Foreground="#CBD5E1" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- 4. Open Output Folder Button -->
+                <Button Grid.Column="4" Command="{Binding OpenOutputFolderCommand}"
+                        Background="#1E293B" Foreground="#64B5F6" BorderBrush="#1F2D4A" BorderThickness="1"
+                        CornerRadius="8" Padding="12,10" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="📂" />
+                        <TextBlock Text="{Binding BtnOpenFolderText}" />
+                    </StackPanel>
+                </Button>
+            </Grid>
+        </Border>
+
+    </Grid>
+</UserControl>

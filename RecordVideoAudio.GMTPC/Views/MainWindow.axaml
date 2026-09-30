@@ -1,0 +1,16 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:RecordVideoAudio.GMTPC.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:views="using:RecordVideoAudio.GMTPC.Views"
+        mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="780"
+        Width="1150" Height="800"
+        MinWidth="850" MinHeight="620"
+        WindowStartupLocation="CenterScreen"
+        x:Class="RecordVideoAudio.GMTPC.Views.MainWindow"
+        Icon="/Assets/avalonia-logo.ico"
+        Background="#0B0F19"
+        Title="Record Video Audio - MultiOS - GMTPC">
+        <views:MainView />
+</Window>
