@@ -195,6 +195,10 @@
                             <StackPanel Spacing="8" IsVisible="{Binding IsCustomAreaMode}" Margin="0,4,0,0">
                                 <Border Background="#0D1322" CornerRadius="8" Padding="10" BorderBrush="#1F2D4A" BorderThickness="1">
                                     <StackPanel Spacing="8">
+                                        <Button Content="🖱️ Kéo chuột quét chọn vùng trên màn hình..." Command="{Binding OpenRegionSelectorCommand}"
+                                                Background="#1E3A5F" Foreground="#00F0FF" BorderBrush="#00F0FF" BorderThickness="1"
+                                                FontWeight="SemiBold" FontSize="11" Padding="12,6" CornerRadius="6" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Margin="0,0,0,4" />
+
                                         <TextBlock Text="📐 TỌA ĐỘ VÀ KÍCH THƯỚC VÙNG QUAY" FontSize="11" FontWeight="Bold" Foreground="#64B5F6" />
                                         
                                         <!-- X & Y Offset -->
@@ -324,6 +328,46 @@
                                     <ProgressBar Minimum="0" Maximum="100" Value="{Binding MicAudioLevel}" Height="6"
                                                  Foreground="#FFB800" Background="#1E293B" CornerRadius="3" />
                                 </StackPanel>
+                            </Border>
+
+                            <!-- Audio Track Allocation Mode (Multi-Track) -->
+                            <Border Background="#0D1322" CornerRadius="8" Padding="10" BorderBrush="#1F2D4A" BorderThickness="1">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="Chế độ phân bổ Track âm thanh (Multi-Track):" FontSize="11" FontWeight="Bold" Foreground="#64B5F6" />
+                                    <ComboBox ItemsSource="{Binding AudioTrackModeList}" SelectedItem="{Binding SelectedAudioTrackMode}"
+                                              HorizontalAlignment="Stretch" />
+                                    <TextBlock Text="💡 Chọn 'SeparateTracks' để tách riêng Track tiếng Loa và Track Mic cho Premiere/CapCut."
+                                               FontSize="10" Foreground="#8892B0" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Utilities & Automation Deck -->
+                    <Border Background="#131B2E" CornerRadius="10" Padding="14" BorderBrush="#1F2D4A" BorderThickness="1">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="🛠️ TIỆN ÍCH &amp; TỰ ĐỘNG HÓA (UTILITIES &amp; HOTKEYS)" FontWeight="Bold" FontSize="12" Foreground="#00E676" />
+
+                            <Grid ColumnDefinitions="*,*">
+                                <CheckBox Grid.Column="0" Content="Hiện Mini-Bar khi quay" IsChecked="{Binding AutoShowMiniBar}"
+                                          FontSize="11" Foreground="#CBD5E1" />
+                                <CheckBox Grid.Column="1" Content="Vẽ con trỏ chuột" IsChecked="{Binding DrawMouse}"
+                                          FontSize="11" Foreground="#CBD5E1" />
+                            </Grid>
+
+                            <!-- Auto-stop timer -->
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="Hẹn giờ tự động dừng quay (0 = Không giới hạn):" FontSize="11" Foreground="#A0AEC0" VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                                    <NumericUpDown Minimum="0" Maximum="480" Value="{Binding AutoStopMinutes}" FormatString="0" Width="100" />
+                                    <TextBlock Text="phút" FontSize="11" Foreground="#CBD5E1" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Global Hotkeys Hint Badge -->
+                            <Border Background="#0D1322" CornerRadius="6" Padding="8,5" BorderBrush="#1F2D4A" BorderThickness="1">
+                                <TextBlock Text="⌨️ Phím tắt toàn cục: [F8] = Bắt đầu / Dừng  |  [F9] = Tạm dừng / Tiếp tục"
+                                           FontSize="10" FontWeight="SemiBold" Foreground="#00F0FF" HorizontalAlignment="Center" />
                             </Border>
                         </StackPanel>
                     </Border>

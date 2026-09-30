@@ -4,19 +4,25 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RecordVideoAudio.GMTPC.Localization;
 using RecordVideoAudio.GMTPC.Models;
 using RecordVideoAudio.GMTPC.Services;
+using RecordVideoAudio.GMTPC.Views;
 
 namespace RecordVideoAudio.GMTPC.ViewModels;
 
-public partial class MainViewModel : ViewModelBase
+public partial class MainViewModel : ViewModelBase, IDisposable
 {
     private readonly IRecordingEngine _engine;
     private readonly IEncoderPipelineService _pipeline;
     private readonly LocalizationService _loc = LocalizationService.Instance;
+    private readonly GlobalHotKeyService _hotKeyService;
+    private FloatingMiniBarWindow? _miniBarWindow;
 
     public MainViewModel()
     {
@@ -26,6 +32,7 @@ public partial class MainViewModel : ViewModelBase
         _engine.StateChanged += Engine_StateChanged;
         _engine.StatsUpdated += Engine_StatsUpdated;
         _engine.AudioLevelsUpdated += Engine_AudioLevelsUpdated;
+        _engine.AutoStopped += Engine_AutoStopped;
 
         _loc.LanguageChanged += () =>
         {
@@ -55,6 +62,8 @@ public partial class MainViewModel : ViewModelBase
         CaptureSourceList = new ObservableCollection<CaptureSourceType> { CaptureSourceType.FullScreen, CaptureSourceType.CustomArea, CaptureSourceType.ActiveWindow, CaptureSourceType.CameraPiP };
         PipPositionList = new ObservableCollection<PipPosition> { PipPosition.BottomRight, PipPosition.BottomLeft, PipPosition.TopRight, PipPosition.TopLeft };
         PipSizeList = new ObservableCollection<PipSize> { PipSize.Small, PipSize.Medium, PipSize.Large };
+        AudioTrackModeList = new ObservableCollection<AudioTrackMode> { AudioTrackMode.MixToSingleTrack, AudioTrackMode.SeparateTracks };
+        AutoStopPresetList = new ObservableCollection<int> { 0, 5, 10, 15, 30, 60, 120 };
 
         Profiles = new ObservableCollection<QualityProfile>(QualityProfile.GetBuiltInProfiles());
         if (Profiles.Count > 0)
@@ -67,6 +76,25 @@ public partial class MainViewModel : ViewModelBase
 
         // Sync initial audio monitoring state with hardware meter
         _engine.UpdateAudioMonitoringSettings(SystemAudioEnabled, SystemAudioVolume, MicAudioEnabled, MicAudioVolume);
+
+        // Global hotkey hook for F8 (Start/Stop) and F9 (Pause/Resume)
+        _hotKeyService = new GlobalHotKeyService();
+        _hotKeyService.F8Pressed += () => Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+        {
+            if (CurrentState == RecordingState.Idle)
+            {
+                await StartRecordingAsync();
+            }
+            else
+            {
+                await StopRecordingAsync();
+            }
+        });
+
+        _hotKeyService.F9Pressed += () => Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+        {
+            await TogglePauseResumeAsync();
+        });
 
         UpdateTranslations();
         RefreshCommandPreview();
@@ -152,6 +180,25 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private PipSize selectedPipSize = PipSize.Small;
 
+    // Multi-Track Audio & Auto-Stop
+    [ObservableProperty]
+    private ObservableCollection<AudioTrackMode> audioTrackModeList;
+
+    [ObservableProperty]
+    private AudioTrackMode selectedAudioTrackMode = AudioTrackMode.MixToSingleTrack;
+
+    [ObservableProperty]
+    private int autoStopMinutes = 0;
+
+    [ObservableProperty]
+    private ObservableCollection<int> autoStopPresetList;
+
+    [ObservableProperty]
+    private bool drawMouse = true;
+
+    [ObservableProperty]
+    private bool autoShowMiniBar = true;
+
     [ObservableProperty]
     private QualityProfile? selectedProfile;
 
@@ -198,7 +245,7 @@ public partial class MainViewModel : ViewModelBase
     private string commandLinePreview = string.Empty;
 
     [ObservableProperty]
-    private string statusMessage = "Hệ thống sẵn sàng ghi hình.";
+    private string statusMessage = "Hệ thống sẵn sàng ghi hình. (Phím tắt: F8 = Quay/Dừng, F9 = Tạm dừng)";
 
     public bool IsRecording => CurrentState == RecordingState.Recording;
     public bool IsPaused => CurrentState == RecordingState.Paused;
@@ -319,6 +366,8 @@ public partial class MainViewModel : ViewModelBase
     partial void OnSelectedFpsChanged(int value) => RefreshCommandPreview();
     partial void OnSelectedPresetChanged(PresetSpeed value) => RefreshCommandPreview();
     partial void OnSelectedHwAccelChanged(HwAccelType value) => RefreshCommandPreview();
+    partial void OnSelectedAudioTrackModeChanged(AudioTrackMode value) => RefreshCommandPreview();
+    partial void OnDrawMouseChanged(bool value) => RefreshCommandPreview();
 
     partial void OnSelectedCaptureSourceChanged(CaptureSourceType value)
     {
@@ -420,6 +469,9 @@ public partial class MainViewModel : ViewModelBase
             WebcamDeviceName = SelectedWebcam,
             CameraPipPosition = SelectedPipPosition,
             CameraPipSize = SelectedPipSize,
+            AudioTrackMode = SelectedAudioTrackMode,
+            AutoStopMinutes = AutoStopMinutes,
+            DrawMouse = DrawMouse,
             RecordSystemAudio = SystemAudioEnabled,
             SystemAudioVolume = SystemAudioVolume,
             RecordMicrophone = MicAudioEnabled,
@@ -448,13 +500,41 @@ public partial class MainViewModel : ViewModelBase
             if (state == RecordingState.Recording)
             {
                 StatusMessage = string.IsNullOrEmpty(_engine.LastErrorMessage)
-                    ? "🔴 Đang quay phim & thu âm trực tiếp..."
+                    ? "🔴 Đang quay phim & thu âm trực tiếp... (F8 = Dừng, F9 = Tạm dừng)"
                     : $"⚠️ Đang quay phim (Lưu ý: {_engine.LastErrorMessage})";
+
+                // Show floating mini-bar if enabled on desktop
+                if (AutoShowMiniBar && Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+                {
+                    if (desktop.MainWindow != null)
+                    {
+                        desktop.MainWindow.WindowState = WindowState.Minimized;
+                    }
+
+                    if (_miniBarWindow == null)
+                    {
+                        _miniBarWindow = new FloatingMiniBarWindow { DataContext = this };
+                    }
+                    _miniBarWindow.Show();
+                    _miniBarWindow.PositionAtTopRight();
+                }
             }
             else if (state == RecordingState.Paused)
-                StatusMessage = "⏸️ Quá trình quay đang tạm dừng.";
+            {
+                StatusMessage = "⏸️ Quá trình quay đang tạm dừng. (F9 = Tiếp tục)";
+            }
             else if (state == RecordingState.Idle)
+            {
                 StatusMessage = "✅ Đã lưu video thành công.";
+
+                // Hide mini-bar and restore main window
+                _miniBarWindow?.Hide();
+                if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
+                {
+                    desktop.MainWindow.WindowState = WindowState.Normal;
+                    desktop.MainWindow.Activate();
+                }
+            }
         });
     }
 
@@ -479,6 +559,14 @@ public partial class MainViewModel : ViewModelBase
         });
     }
 
+    private void Engine_AutoStopped()
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            StatusMessage = $"⏰ Đã tự động dừng quay theo lịch hẹn ({AutoStopMinutes} phút).";
+        });
+    }
+
     #endregion
 
     #region Commands
@@ -487,6 +575,32 @@ public partial class MainViewModel : ViewModelBase
     private void ToggleLanguage()
     {
         _loc.ToggleLanguage();
+    }
+
+    [RelayCommand]
+    private void OpenRegionSelector()
+    {
+        var selector = new RegionSelectorWindow();
+        selector.RegionSelected = (x, y, w, h) =>
+        {
+            AreaX = x;
+            AreaY = y;
+            AreaWidth = (w / 2) * 2;
+            AreaHeight = (h / 2) * 2;
+            SelectedCaptureSource = CaptureSourceType.CustomArea;
+            RefreshCommandPreview();
+        };
+        selector.Show();
+    }
+
+    [RelayCommand]
+    private void RestoreMainWindow()
+    {
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
+        {
+            desktop.MainWindow.WindowState = WindowState.Normal;
+            desktop.MainWindow.Activate();
+        }
     }
 
     [RelayCommand]
@@ -611,4 +725,11 @@ public partial class MainViewModel : ViewModelBase
     }
 
     #endregion
+
+    public void Dispose()
+    {
+        _hotKeyService.Dispose();
+        _engine.Dispose();
+        _miniBarWindow?.Close();
+    }
 }

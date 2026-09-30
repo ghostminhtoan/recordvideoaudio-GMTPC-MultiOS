@@ -20,6 +20,7 @@ public interface IRecordingEngine : IDisposable
     event Action<RecordingState>? StateChanged;
     event Action<RecordingStats>? StatsUpdated;
     event Action<double, double>? AudioLevelsUpdated; // speakerLevel, micLevel (0-100)
+    event Action? AutoStopped;
 
     Task<bool> StartRecordingAsync(RecordingConfig config);
     Task<bool> PauseRecordingAsync();
@@ -54,6 +55,7 @@ public class RecordingEngine : IRecordingEngine
     public event Action<RecordingState>? StateChanged;
     public event Action<RecordingStats>? StatsUpdated;
     public event Action<double, double>? AudioLevelsUpdated;
+    public event Action? AutoStopped;
 
     public RecordingEngine(IEncoderPipelineService? pipelineService = null)
     {
@@ -244,7 +246,7 @@ public class RecordingEngine : IRecordingEngine
             {
                 if (File.Exists(finalPath)) File.Delete(finalPath);
 
-                string muxArgs = _pipelineService.BuildMuxArguments(_tempVideoPath, speakerWav, micWav, finalPath, ActiveConfig.AudioCodec, ActiveConfig.Format);
+                string muxArgs = _pipelineService.BuildMuxArguments(_tempVideoPath, speakerWav, micWav, finalPath, ActiveConfig.AudioCodec, ActiveConfig.Format, ActiveConfig.AudioTrackMode);
 
                 var muxPsi = new ProcessStartInfo
                 {
@@ -335,6 +337,16 @@ public class RecordingEngine : IRecordingEngine
         }
 
         StatsUpdated?.Invoke(CurrentStats);
+
+        // Auto-stop scheduled timer check
+        if (ActiveConfig.AutoStopMinutes > 0 && CurrentStats.ElapsedTime.TotalMinutes >= ActiveConfig.AutoStopMinutes && CurrentState == RecordingState.Recording)
+        {
+            Task.Run(async () =>
+            {
+                await StopRecordingAsync();
+                AutoStopped?.Invoke();
+            });
+        }
     }
 
     private void OnAudioLevelTick()

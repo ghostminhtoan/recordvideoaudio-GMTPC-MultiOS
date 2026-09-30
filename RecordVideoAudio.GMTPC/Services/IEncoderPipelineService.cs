@@ -12,7 +12,7 @@ public interface IEncoderPipelineService
 {
     string BuildCommandLine(RecordingConfig config, string outputPath);
     string BuildArguments(RecordingConfig config, string outputPath, bool videoOnly = false);
-    string BuildMuxArguments(string videoPath, string? speakerWav, string? micWav, string outputPath, AudioCodecType audioCodec, ContainerFormat format);
+    string BuildMuxArguments(string videoPath, string? speakerWav, string? micWav, string outputPath, AudioCodecType audioCodec, ContainerFormat format, AudioTrackMode audioTrackMode = AudioTrackMode.MixToSingleTrack);
     string GetOutputExtension(ContainerFormat format);
     string GenerateDefaultFileName(ContainerFormat format);
     string? FindFFmpegExecutable();
@@ -136,6 +136,7 @@ public class FFmpegPipelineService : IEncoderPipelineService
         sb.Append("-y ");
 
         // 1. Capture Inputs according to CaptureSource
+        int dm = config.DrawMouse ? 1 : 0;
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             switch (config.CaptureSource)
@@ -143,18 +144,18 @@ public class FFmpegPipelineService : IEncoderPipelineService
                 case CaptureSourceType.CustomArea:
                     int w = Math.Max(2, (config.AreaWidth / 2) * 2); // ensure even number
                     int h = Math.Max(2, (config.AreaHeight / 2) * 2);
-                    sb.Append($"-f gdigrab -framerate {config.Fps} -draw_mouse 1 -offset_x {config.AreaX} -offset_y {config.AreaY} -video_size {w}x{h} -i desktop ");
+                    sb.Append($"-f gdigrab -framerate {config.Fps} -draw_mouse {dm} -offset_x {config.AreaX} -offset_y {config.AreaY} -video_size {w}x{h} -i desktop ");
                     break;
 
                 case CaptureSourceType.ActiveWindow:
                     if (!string.IsNullOrWhiteSpace(config.SelectedWindowTitle))
                     {
                         string safeTitle = config.SelectedWindowTitle.Replace("\"", "\\\"");
-                        sb.Append($"-f gdigrab -framerate {config.Fps} -draw_mouse 1 -i title=\"{safeTitle}\" ");
+                        sb.Append($"-f gdigrab -framerate {config.Fps} -draw_mouse {dm} -i title=\"{safeTitle}\" ");
                     }
                     else
                     {
-                        sb.Append($"-f gdigrab -framerate {config.Fps} -draw_mouse 1 -i desktop ");
+                        sb.Append($"-f gdigrab -framerate {config.Fps} -draw_mouse {dm} -i desktop ");
                     }
                     break;
 
@@ -180,20 +181,20 @@ public class FFmpegPipelineService : IEncoderPipelineService
                         _ => "main_w-overlay_w-20:main_h-overlay_h-20"
                     };
 
-                    sb.Append($"-f gdigrab -framerate {config.Fps} -draw_mouse 1 -i desktop ");
+                    sb.Append($"-f gdigrab -framerate {config.Fps} -draw_mouse {dm} -i desktop ");
                     sb.Append($"-f dshow -i video=\"{webcam}\" ");
                     sb.Append($"-filter_complex \"[1:v]fps={config.Fps},scale={camW}:{camH}[cam];[0:v][cam]overlay={overlayPos}[vout]\" -map \"[vout]\" ");
                     break;
 
                 case CaptureSourceType.FullScreen:
                 default:
-                    sb.Append($"-f gdigrab -framerate {config.Fps} -draw_mouse 1 -i desktop ");
+                    sb.Append($"-f gdigrab -framerate {config.Fps} -draw_mouse {dm} -i desktop ");
                     break;
             }
         }
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
-            sb.Append($"-f x11grab -framerate {config.Fps} -draw_mouse 1 -i :0.0 ");
+            sb.Append($"-f x11grab -framerate {config.Fps} -draw_mouse {dm} -i :0.0 ");
         }
         else
         {
@@ -279,7 +280,7 @@ public class FFmpegPipelineService : IEncoderPipelineService
         return sb.ToString();
     }
 
-    public string BuildMuxArguments(string videoPath, string? speakerWav, string? micWav, string outputPath, AudioCodecType audioCodec, ContainerFormat format)
+    public string BuildMuxArguments(string videoPath, string? speakerWav, string? micWav, string outputPath, AudioCodecType audioCodec, ContainerFormat format, AudioTrackMode audioTrackMode = AudioTrackMode.MixToSingleTrack)
     {
         var sb = new StringBuilder();
         sb.Append("-y ");
@@ -296,10 +297,20 @@ public class FFmpegPipelineService : IEncoderPipelineService
         {
             sb.Append($"-i \"{speakerWav}\" ");
             sb.Append($"-i \"{micWav}\" ");
-            sb.Append("-filter_complex \"[1:a][2:a]amix=inputs=2:duration=first:dropout_transition=2[aout]\" ");
-            sb.Append("-map 0:v ");
-            sb.Append("-map \"[aout]\" ");
-            sb.Append($"-c:v copy -c:a {audioEncoder} ");
+            if (audioTrackMode == AudioTrackMode.SeparateTracks)
+            {
+                // Multi-track audio: Track 1 = System Audio, Track 2 = Microphone
+                sb.Append("-map 0:v -map 1:a -map 2:a ");
+                sb.Append($"-c:v copy -c:a:0 {audioEncoder} -metadata:s:a:0 title=\"System Audio\" -c:a:1 {audioEncoder} -metadata:s:a:1 title=\"Microphone\" ");
+            }
+            else
+            {
+                // Mix to single track
+                sb.Append("-filter_complex \"[1:a][2:a]amix=inputs=2:duration=first:dropout_transition=2[aout]\" ");
+                sb.Append("-map 0:v ");
+                sb.Append("-map \"[aout]\" ");
+                sb.Append($"-c:v copy -c:a {audioEncoder} ");
+            }
         }
         else if (!string.IsNullOrEmpty(speakerWav))
         {

@@ -79,3 +79,9 @@ public enum PipSize
     Large
 }
 
+public enum AudioTrackMode
+{
+    MixToSingleTrack,
+    SeparateTracks
+}
+

@@ -1,0 +1,41 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="RecordVideoAudio.GMTPC.Views.RegionSelectorWindow"
+        Title="Chọn vùng quay màn hình - GMTPC"
+        WindowState="Maximized"
+        WindowDecorations="None"
+        Topmost="True"
+        Background="#55000000"
+        Cursor="Cross">
+
+    <Canvas x:Name="OverlayCanvas" Background="Transparent">
+        <!-- Top Hint Bar -->
+        <Border Canvas.Left="0" Canvas.Top="20" HorizontalAlignment="Center"
+                Background="#EE131B2E" BorderBrush="#00F0FF" BorderThickness="1.5"
+                CornerRadius="8" Padding="16,8">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="🖱️ Nhấn giữ chuột trái và kéo để chọn vùng quay màn hình" 
+                           Foreground="#FFFFFF" FontWeight="Bold" FontSize="13" />
+                <TextBlock Text="•" Foreground="#8892B0" />
+                <TextBlock Text="Bấm phím [ESC] để hủy bỏ" Foreground="#FFB800" FontSize="12" />
+            </StackPanel>
+        </Border>
+
+        <!-- Selection Rectangle Frame -->
+        <Border x:Name="SelectionBox"
+                BorderBrush="#00F0FF" BorderThickness="2"
+                Background="#2500F0FF"
+                CornerRadius="2"
+                IsVisible="False" />
+
+        <!-- Dimension & Coordinate Tooltip Badge -->
+        <Border x:Name="InfoBadge"
+                Background="#EE0A0E1A" BorderBrush="#00E676" BorderThickness="1"
+                CornerRadius="6" Padding="10,6"
+                IsVisible="False">
+            <TextBlock x:Name="InfoText" Text="0 × 0"
+                       Foreground="#00F0FF" FontWeight="Bold" FontSize="12"
+                       FontFamily="Consolas, Cascadia Code, Courier New" />
+        </Border>
+    </Canvas>
+</Window>

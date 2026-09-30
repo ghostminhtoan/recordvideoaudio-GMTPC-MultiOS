@@ -29,8 +29,11 @@ public class RecordingConfig
     public string WebcamDeviceName { get; set; } = string.Empty;
     public PipPosition CameraPipPosition { get; set; } = PipPosition.BottomRight;
     public PipSize CameraPipSize { get; set; } = PipSize.Small;
+    public bool DrawMouse { get; set; } = true;
+    public int AutoStopMinutes { get; set; } = 0; // 0 = unlimited
 
     // Audio Mixer settings
+    public AudioTrackMode AudioTrackMode { get; set; } = AudioTrackMode.MixToSingleTrack;
     public bool RecordSystemAudio { get; set; } = true;
     public int SystemAudioVolume { get; set; } = 100; // 0 - 100%
     public bool RecordMicrophone { get; set; } = true;
