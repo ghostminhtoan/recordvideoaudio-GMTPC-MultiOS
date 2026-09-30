@@ -63,3 +63,19 @@ public enum HwAccelType
     MediaCodec,
     SoftwareCPU
 }
+
+public enum PipPosition
+{
+    BottomRight,
+    BottomLeft,
+    TopRight,
+    TopLeft
+}
+
+public enum PipSize
+{
+    Small,
+    Medium,
+    Large
+}
+

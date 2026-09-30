@@ -19,7 +19,16 @@ public class RecordingConfig
     public int Fps { get; set; } = 60;
     public PresetSpeed Preset { get; set; } = PresetSpeed.Veryfast;
     public HwAccelType HwAcceleration { get; set; } = HwAccelType.Auto;
+    // Capture Source Specific Settings
     public CaptureSourceType CaptureSource { get; set; } = CaptureSourceType.FullScreen;
+    public int AreaX { get; set; } = 0;
+    public int AreaY { get; set; } = 0;
+    public int AreaWidth { get; set; } = 1920;
+    public int AreaHeight { get; set; } = 1080;
+    public string SelectedWindowTitle { get; set; } = string.Empty;
+    public string WebcamDeviceName { get; set; } = string.Empty;
+    public PipPosition CameraPipPosition { get; set; } = PipPosition.BottomRight;
+    public PipSize CameraPipSize { get; set; } = PipSize.Small;
 
     // Audio Mixer settings
     public bool RecordSystemAudio { get; set; } = true;

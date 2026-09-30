@@ -53,6 +53,9 @@ public partial class MainViewModel : ViewModelBase
         PresetList = new ObservableCollection<PresetSpeed> { PresetSpeed.Ultrafast, PresetSpeed.Veryfast, PresetSpeed.Fast, PresetSpeed.Medium, PresetSpeed.Slow };
         HwAccelList = new ObservableCollection<HwAccelType> { HwAccelType.Auto, HwAccelType.NVENC, HwAccelType.QSV, HwAccelType.AMF, HwAccelType.VAAPI, HwAccelType.MediaCodec, HwAccelType.SoftwareCPU };
         CaptureSourceList = new ObservableCollection<CaptureSourceType> { CaptureSourceType.FullScreen, CaptureSourceType.CustomArea, CaptureSourceType.ActiveWindow, CaptureSourceType.CameraPiP };
+        PipPositionList = new ObservableCollection<PipPosition> { PipPosition.BottomRight, PipPosition.BottomLeft, PipPosition.TopRight, PipPosition.TopLeft };
+        PipSizeList = new ObservableCollection<PipSize> { PipSize.Small, PipSize.Medium, PipSize.Large };
+
         Profiles = new ObservableCollection<QualityProfile>(QualityProfile.GetBuiltInProfiles());
         if (Profiles.Count > 0)
         {
@@ -61,6 +64,9 @@ public partial class MainViewModel : ViewModelBase
 
         // Default folder
         OutputDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Recordings");
+
+        // Sync initial audio monitoring state with hardware meter
+        _engine.UpdateAudioMonitoringSettings(SystemAudioEnabled, SystemAudioVolume, MicAudioEnabled, MicAudioVolume);
 
         UpdateTranslations();
         RefreshCommandPreview();
@@ -106,6 +112,45 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     private CaptureSourceType selectedCaptureSource = CaptureSourceType.FullScreen;
+
+    // Custom Area Properties
+    [ObservableProperty]
+    private int areaX = 0;
+
+    [ObservableProperty]
+    private int areaY = 0;
+
+    [ObservableProperty]
+    private int areaWidth = 1920;
+
+    [ObservableProperty]
+    private int areaHeight = 1080;
+
+    // Active Window Properties
+    [ObservableProperty]
+    private ObservableCollection<string> openWindowsList = new();
+
+    [ObservableProperty]
+    private string selectedWindowTitle = string.Empty;
+
+    // Camera PiP Properties
+    [ObservableProperty]
+    private ObservableCollection<string> webcamList = new();
+
+    [ObservableProperty]
+    private string selectedWebcam = string.Empty;
+
+    [ObservableProperty]
+    private ObservableCollection<PipPosition> pipPositionList;
+
+    [ObservableProperty]
+    private PipPosition selectedPipPosition = PipPosition.BottomRight;
+
+    [ObservableProperty]
+    private ObservableCollection<PipSize> pipSizeList;
+
+    [ObservableProperty]
+    private PipSize selectedPipSize = PipSize.Small;
 
     [ObservableProperty]
     private QualityProfile? selectedProfile;
@@ -164,6 +209,10 @@ public partial class MainViewModel : ViewModelBase
     public bool IsCqpMode => SelectedRateControl == RateControlMode.CQP;
     public bool IsCbrMode => SelectedRateControl == RateControlMode.CBR;
     public bool IsVbrMode => SelectedRateControl == RateControlMode.VBR;
+
+    public bool IsCustomAreaMode => SelectedCaptureSource == CaptureSourceType.CustomArea;
+    public bool IsActiveWindowMode => SelectedCaptureSource == CaptureSourceType.ActiveWindow;
+    public bool IsCameraPipMode => SelectedCaptureSource == CaptureSourceType.CameraPiP;
 
     public ObservableCollection<ContainerFormat> FormatList { get; }
     public ObservableCollection<VideoCodecType> VideoCodecList { get; }
@@ -270,8 +319,57 @@ public partial class MainViewModel : ViewModelBase
     partial void OnSelectedFpsChanged(int value) => RefreshCommandPreview();
     partial void OnSelectedPresetChanged(PresetSpeed value) => RefreshCommandPreview();
     partial void OnSelectedHwAccelChanged(HwAccelType value) => RefreshCommandPreview();
-    partial void OnSystemAudioEnabledChanged(bool value) => RefreshCommandPreview();
-    partial void OnMicAudioEnabledChanged(bool value) => RefreshCommandPreview();
+
+    partial void OnSelectedCaptureSourceChanged(CaptureSourceType value)
+    {
+        OnPropertyChanged(nameof(IsCustomAreaMode));
+        OnPropertyChanged(nameof(IsActiveWindowMode));
+        OnPropertyChanged(nameof(IsCameraPipMode));
+
+        if (value == CaptureSourceType.ActiveWindow && OpenWindowsList.Count == 0)
+        {
+            RefreshWindows();
+        }
+        else if (value == CaptureSourceType.CameraPiP && WebcamList.Count == 0)
+        {
+            RefreshWebcams();
+        }
+
+        RefreshCommandPreview();
+    }
+
+    partial void OnAreaXChanged(int value) => RefreshCommandPreview();
+    partial void OnAreaYChanged(int value) => RefreshCommandPreview();
+    partial void OnAreaWidthChanged(int value) => RefreshCommandPreview();
+    partial void OnAreaHeightChanged(int value) => RefreshCommandPreview();
+    partial void OnSelectedWindowTitleChanged(string value) => RefreshCommandPreview();
+    partial void OnSelectedWebcamChanged(string value) => RefreshCommandPreview();
+    partial void OnSelectedPipPositionChanged(PipPosition value) => RefreshCommandPreview();
+    partial void OnSelectedPipSizeChanged(PipSize value) => RefreshCommandPreview();
+
+    partial void OnSystemAudioEnabledChanged(bool value)
+    {
+        _engine.UpdateAudioMonitoringSettings(value, SystemAudioVolume, MicAudioEnabled, MicAudioVolume);
+        if (!value) SystemAudioLevel = 0;
+        RefreshCommandPreview();
+    }
+
+    partial void OnSystemAudioVolumeChanged(int value)
+    {
+        _engine.UpdateAudioMonitoringSettings(SystemAudioEnabled, value, MicAudioEnabled, MicAudioVolume);
+    }
+
+    partial void OnMicAudioEnabledChanged(bool value)
+    {
+        _engine.UpdateAudioMonitoringSettings(SystemAudioEnabled, SystemAudioVolume, value, MicAudioVolume);
+        if (!value) MicAudioLevel = 0;
+        RefreshCommandPreview();
+    }
+
+    partial void OnMicAudioVolumeChanged(int value)
+    {
+        _engine.UpdateAudioMonitoringSettings(SystemAudioEnabled, SystemAudioVolume, MicAudioEnabled, value);
+    }
 
     partial void OnSelectedProfileChanged(QualityProfile? value)
     {
@@ -314,6 +412,14 @@ public partial class MainViewModel : ViewModelBase
             Preset = SelectedPreset,
             HwAcceleration = SelectedHwAccel,
             CaptureSource = SelectedCaptureSource,
+            AreaX = AreaX,
+            AreaY = AreaY,
+            AreaWidth = AreaWidth,
+            AreaHeight = AreaHeight,
+            SelectedWindowTitle = SelectedWindowTitle,
+            WebcamDeviceName = SelectedWebcam,
+            CameraPipPosition = SelectedPipPosition,
+            CameraPipSize = SelectedPipSize,
             RecordSystemAudio = SystemAudioEnabled,
             SystemAudioVolume = SystemAudioVolume,
             RecordMicrophone = MicAudioEnabled,
@@ -381,6 +487,65 @@ public partial class MainViewModel : ViewModelBase
     private void ToggleLanguage()
     {
         _loc.ToggleLanguage();
+    }
+
+    [RelayCommand]
+    private void RefreshWindows()
+    {
+        OpenWindowsList.Clear();
+        var windows = WindowEnumerator.GetOpenWindows();
+        foreach (var w in windows)
+        {
+            OpenWindowsList.Add(w);
+        }
+        if (OpenWindowsList.Count > 0 && (string.IsNullOrEmpty(SelectedWindowTitle) || !OpenWindowsList.Contains(SelectedWindowTitle)))
+        {
+            SelectedWindowTitle = OpenWindowsList[0];
+        }
+    }
+
+    [RelayCommand]
+    private void RefreshWebcams()
+    {
+        WebcamList.Clear();
+        string? detected = _pipeline.GetDetectedWebcamDevice();
+        if (!string.IsNullOrEmpty(detected))
+        {
+            WebcamList.Add(detected);
+            SelectedWebcam = detected;
+        }
+        else
+        {
+            WebcamList.Add("Logi C270 HD WebCam");
+            SelectedWebcam = "Logi C270 HD WebCam";
+        }
+    }
+
+    [RelayCommand]
+    private void SetPresetFhd()
+    {
+        AreaX = 0;
+        AreaY = 0;
+        AreaWidth = 1920;
+        AreaHeight = 1080;
+    }
+
+    [RelayCommand]
+    private void SetPresetHd()
+    {
+        AreaX = 0;
+        AreaY = 0;
+        AreaWidth = 1280;
+        AreaHeight = 720;
+    }
+
+    [RelayCommand]
+    private void SetPresetSd()
+    {
+        AreaX = 0;
+        AreaY = 0;
+        AreaWidth = 854;
+        AreaHeight = 480;
     }
 
     [RelayCommand]

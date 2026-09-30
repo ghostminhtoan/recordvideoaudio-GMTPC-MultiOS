@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="NAudio.Wasapi" />
   </ItemGroup>
 
   <ItemGroup>

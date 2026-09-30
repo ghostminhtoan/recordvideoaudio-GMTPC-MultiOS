@@ -10,7 +10,7 @@ using RecordVideoAudio.GMTPC.Models;
 
 namespace RecordVideoAudio.GMTPC.Services;
 
-public interface IRecordingEngine
+public interface IRecordingEngine : IDisposable
 {
     RecordingState CurrentState { get; }
     RecordingStats CurrentStats { get; }
@@ -19,25 +19,32 @@ public interface IRecordingEngine
 
     event Action<RecordingState>? StateChanged;
     event Action<RecordingStats>? StatsUpdated;
-    event Action<double, double>? AudioLevelsUpdated;
+    event Action<double, double>? AudioLevelsUpdated; // speakerLevel, micLevel (0-100)
 
     Task<bool> StartRecordingAsync(RecordingConfig config);
     Task<bool> PauseRecordingAsync();
     Task<bool> ResumeRecordingAsync();
     Task<string> StopRecordingAsync();
+    void UpdateAudioMonitoringSettings(bool speakerEnabled, double speakerVolume, bool micEnabled, double micVolume);
 }
 
 public class RecordingEngine : IRecordingEngine
 {
     private readonly IEncoderPipelineService _pipelineService;
+    private readonly RealtimeAudioMonitor _audioMonitor;
+    private readonly WasapiAudioRecorder _audioRecorder;
     private readonly System.Timers.Timer _levelTimer;
-    private readonly Random _random = new();
 
     private Process? _ffmpegProcess;
     private DateTime _startTime;
     private TimeSpan _pausedDuration = TimeSpan.Zero;
     private DateTime _pauseStartTime;
-    private readonly StringBuilder _stderrBuffer = new();
+    private string _tempVideoPath = string.Empty;
+
+    private bool _monitorSpeaker = true;
+    private double _monitorSpeakerVolume = 100;
+    private bool _monitorMic = true;
+    private double _monitorMicVolume = 90;
 
     public RecordingState CurrentState { get; private set; } = RecordingState.Idle;
     public RecordingStats CurrentStats { get; private set; } = new();
@@ -51,8 +58,21 @@ public class RecordingEngine : IRecordingEngine
     public RecordingEngine(IEncoderPipelineService? pipelineService = null)
     {
         _pipelineService = pipelineService ?? new FFmpegPipelineService();
-        _levelTimer = new System.Timers.Timer(150);
+        _audioMonitor = new RealtimeAudioMonitor();
+        _audioRecorder = new WasapiAudioRecorder();
+
+        // 60ms timer for smooth 16+ FPS real-time audio VU meter tracing
+        _levelTimer = new System.Timers.Timer(60);
         _levelTimer.Elapsed += (s, e) => OnAudioLevelTick();
+        _levelTimer.Start();
+    }
+
+    public void UpdateAudioMonitoringSettings(bool speakerEnabled, double speakerVolume, bool micEnabled, double micVolume)
+    {
+        _monitorSpeaker = speakerEnabled;
+        _monitorSpeakerVolume = speakerVolume;
+        _monitorMic = micEnabled;
+        _monitorMicVolume = micVolume;
     }
 
     public Task<bool> StartRecordingAsync(RecordingConfig config)
@@ -63,7 +83,6 @@ public class RecordingEngine : IRecordingEngine
         ActiveConfig = config;
         LastErrorMessage = string.Empty;
         _pausedDuration = TimeSpan.Zero;
-        _stderrBuffer.Clear();
 
         string outDir = string.IsNullOrWhiteSpace(config.OutputDirectory)
             ? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Recordings")
@@ -89,13 +108,33 @@ public class RecordingEngine : IRecordingEngine
             EstimatedSizeBytes = 0
         };
 
-        string? ffmpegPath = _pipelineService.FindFFmpegExecutable();
+        // 1. Start WASAPI Hardware Audio Recording for Speaker & Mic
+        if (config.RecordSystemAudio || config.RecordMicrophone)
+        {
+            string? audioErr = _audioRecorder.StartRecording(
+                config.RecordSystemAudio,
+                config.SystemAudioVolume,
+                config.RecordMicrophone,
+                config.MicrophoneVolume,
+                outDir
+            );
+            if (!string.IsNullOrEmpty(audioErr))
+            {
+                LastErrorMessage = $"Lưu ý âm thanh: {audioErr}";
+            }
+        }
 
+        // 2. Start Video Capture with FFmpeg
+        string? ffmpegPath = _pipelineService.FindFFmpegExecutable();
         if (!string.IsNullOrEmpty(ffmpegPath) && File.Exists(ffmpegPath))
         {
             try
             {
-                string arguments = _pipelineService.BuildArguments(config, CurrentStats.OutputFilePath);
+                // Intermediate video file
+                string ext = _pipelineService.GetOutputExtension(config.Format);
+                _tempVideoPath = Path.Combine(outDir, $"temp_video_{Guid.NewGuid():N}{ext}");
+
+                string arguments = _pipelineService.BuildArguments(config, _tempVideoPath, true);
 
                 var psi = new ProcessStartInfo
                 {
@@ -129,7 +168,6 @@ public class RecordingEngine : IRecordingEngine
         }
 
         CurrentState = RecordingState.Recording;
-        _levelTimer.Start();
         StateChanged?.Invoke(CurrentState);
         return Task.FromResult(true);
     }
@@ -163,13 +201,12 @@ public class RecordingEngine : IRecordingEngine
 
         CurrentState = RecordingState.Finalizing;
         StateChanged?.Invoke(CurrentState);
-        _levelTimer.Stop();
 
+        // 1. Stop FFmpeg Video Process gracefully
         if (_ffmpegProcess != null && !_ffmpegProcess.HasExited)
         {
             try
             {
-                // Send 'q' to gracefully stop FFmpeg and write container trailer / moov atom
                 await _ffmpegProcess.StandardInput.WriteLineAsync("q");
                 await _ffmpegProcess.StandardInput.FlushAsync();
 
@@ -194,9 +231,55 @@ public class RecordingEngine : IRecordingEngine
             }
         }
 
-        string finalPath = CurrentStats.OutputFilePath;
+        // 2. Stop WASAPI Audio Recording
+        var (speakerWav, micWav) = _audioRecorder.StopRecording();
 
-        // Verify resulting file
+        string finalPath = CurrentStats.OutputFilePath;
+        string? ffmpegPath = _pipelineService.FindFFmpegExecutable();
+
+        // 3. Mux Video + Audio using FFmpeg (lossless video copy, ultra-fast ~0.5s)
+        if (File.Exists(_tempVideoPath) && !string.IsNullOrEmpty(ffmpegPath))
+        {
+            try
+            {
+                if (File.Exists(finalPath)) File.Delete(finalPath);
+
+                string muxArgs = _pipelineService.BuildMuxArguments(_tempVideoPath, speakerWav, micWav, finalPath, ActiveConfig.AudioCodec, ActiveConfig.Format);
+
+                var muxPsi = new ProcessStartInfo
+                {
+                    FileName = ffmpegPath,
+                    Arguments = muxArgs,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using var muxProcess = Process.Start(muxPsi);
+                if (muxProcess != null)
+                {
+                    await muxProcess.WaitForExitAsync();
+                }
+            }
+            catch { }
+            finally
+            {
+                // Clean temporary files
+                try { if (File.Exists(_tempVideoPath)) File.Delete(_tempVideoPath); } catch { }
+                try { if (!string.IsNullOrEmpty(speakerWav) && File.Exists(speakerWav)) File.Delete(speakerWav); } catch { }
+                try { if (!string.IsNullOrEmpty(micWav) && File.Exists(micWav)) File.Delete(micWav); } catch { }
+            }
+        }
+        else if (File.Exists(_tempVideoPath))
+        {
+            try
+            {
+                if (File.Exists(finalPath)) File.Delete(finalPath);
+                File.Move(_tempVideoPath, finalPath);
+            }
+            catch { }
+        }
+
+        // 4. Update file statistics
         if (File.Exists(finalPath))
         {
             var fi = new FileInfo(finalPath);
@@ -212,16 +295,6 @@ public class RecordingEngine : IRecordingEngine
     {
         if (string.IsNullOrEmpty(e.Data)) return;
 
-        lock (_stderrBuffer)
-        {
-            _stderrBuffer.AppendLine(e.Data);
-            if (_stderrBuffer.Length > 8000)
-            {
-                _stderrBuffer.Remove(0, 4000);
-            }
-        }
-
-        // Parse line: frame=  123 fps= 60.0 q=20.0 size=    1536kB time=00:00:02.05 bitrate=6138.4kbits/s
         var frameMatch = Regex.Match(e.Data, @"frame=\s*(\d+)");
         var fpsMatch = Regex.Match(e.Data, @"fps=\s*([\d\.]+)");
         var timeMatch = Regex.Match(e.Data, @"time=\s*(\d+:\d+:\d+\.\d+)");
@@ -266,11 +339,22 @@ public class RecordingEngine : IRecordingEngine
 
     private void OnAudioLevelTick()
     {
-        if (CurrentState != RecordingState.Recording)
-            return;
+        // Real-time audio VU meter readings directly from Windows sound hardware
+        var (sysLevel, micLevel) = _audioMonitor.GetCurrentLevels(
+            _monitorSpeaker,
+            _monitorSpeakerVolume,
+            _monitorMic,
+            _monitorMicVolume
+        );
 
-        double sysLevel = ActiveConfig.RecordSystemAudio ? (_random.NextDouble() * 70 + 20) * (ActiveConfig.SystemAudioVolume / 100.0) : 0;
-        double micLevel = ActiveConfig.RecordMicrophone ? (_random.NextDouble() * 65 + 15) * (ActiveConfig.MicrophoneVolume / 100.0) : 0;
         AudioLevelsUpdated?.Invoke(sysLevel, micLevel);
+    }
+
+    public void Dispose()
+    {
+        _levelTimer.Stop();
+        _levelTimer.Dispose();
+        _audioMonitor.Dispose();
+        _audioRecorder.Dispose();
     }
 }

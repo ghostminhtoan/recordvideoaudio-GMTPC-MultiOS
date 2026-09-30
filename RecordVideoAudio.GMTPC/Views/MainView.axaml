@@ -186,10 +186,106 @@
 
                     <!-- Capture Source -->
                     <Border Background="#131B2E" CornerRadius="10" Padding="14" BorderBrush="#1F2D4A" BorderThickness="1">
-                        <StackPanel Spacing="8">
+                        <StackPanel Spacing="10">
                             <TextBlock Text="🖥️ NGUỒN THU HÌNH (CAPTURE SOURCE)" FontWeight="Bold" FontSize="12" Foreground="#00F0FF" />
                             <ComboBox ItemsSource="{Binding CaptureSourceList}" SelectedItem="{Binding SelectedCaptureSource}"
                                       HorizontalAlignment="Stretch" />
+
+                            <!-- 1. Custom Area Controls -->
+                            <StackPanel Spacing="8" IsVisible="{Binding IsCustomAreaMode}" Margin="0,4,0,0">
+                                <Border Background="#0D1322" CornerRadius="8" Padding="10" BorderBrush="#1F2D4A" BorderThickness="1">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="📐 TỌA ĐỘ VÀ KÍCH THƯỚC VÙNG QUAY" FontSize="11" FontWeight="Bold" Foreground="#64B5F6" />
+                                        
+                                        <!-- X & Y Offset -->
+                                        <Grid ColumnDefinitions="*,*">
+                                            <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,4,0">
+                                                <TextBlock Text="Tọa độ X (Trục ngang):" FontSize="10" Foreground="#A0AEC0" />
+                                                <NumericUpDown Minimum="0" Maximum="3840" Value="{Binding AreaX}" FormatString="0" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Spacing="4" Margin="4,0,0,0">
+                                                <TextBlock Text="Tọa độ Y (Trục dọc):" FontSize="10" Foreground="#A0AEC0" />
+                                                <NumericUpDown Minimum="0" Maximum="2160" Value="{Binding AreaY}" FormatString="0" />
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <!-- Width & Height -->
+                                        <Grid ColumnDefinitions="*,*">
+                                            <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,4,0">
+                                                <TextBlock Text="Chiều rộng (Width):" FontSize="10" Foreground="#A0AEC0" />
+                                                <NumericUpDown Minimum="100" Maximum="7680" Value="{Binding AreaWidth}" FormatString="0" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Spacing="4" Margin="4,0,0,0">
+                                                <TextBlock Text="Chiều cao (Height):" FontSize="10" Foreground="#A0AEC0" />
+                                                <NumericUpDown Minimum="100" Maximum="4320" Value="{Binding AreaHeight}" FormatString="0" />
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <!-- Quick Presets -->
+                                        <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" Margin="0,4,0,0">
+                                            <Button Content="1080p (FullHD)" Command="{Binding SetPresetFhdCommand}"
+                                                    Background="#1E293B" Foreground="#00F0FF" FontSize="10" Padding="8,4" CornerRadius="4" />
+                                            <Button Content="720p (HD)" Command="{Binding SetPresetHdCommand}"
+                                                    Background="#1E293B" Foreground="#00E676" FontSize="10" Padding="8,4" CornerRadius="4" />
+                                            <Button Content="480p (SD)" Command="{Binding SetPresetSdCommand}"
+                                                    Background="#1E293B" Foreground="#FFB800" FontSize="10" Padding="8,4" CornerRadius="4" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- 2. Active Window Controls -->
+                            <StackPanel Spacing="8" IsVisible="{Binding IsActiveWindowMode}" Margin="0,4,0,0">
+                                <Border Background="#0D1322" CornerRadius="8" Padding="10" BorderBrush="#1F2D4A" BorderThickness="1">
+                                    <StackPanel Spacing="8">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Text="🪟 CHỌN CỬA SỔ PHẦN MỀM ĐANG MỞ" FontSize="11" FontWeight="Bold" Foreground="#64B5F6" VerticalAlignment="Center" />
+                                            <Button Grid.Column="1" Content="🔄 Quét lại" Command="{Binding RefreshWindowsCommand}"
+                                                    Background="#1E293B" Foreground="#00F0FF" FontSize="10" Padding="8,4" CornerRadius="4" />
+                                        </Grid>
+                                        <ComboBox ItemsSource="{Binding OpenWindowsList}" SelectedItem="{Binding SelectedWindowTitle}"
+                                                  HorizontalAlignment="Stretch" PlaceholderText="Chọn một cửa sổ ứng dụng để quay..." />
+                                        <TextBlock Text="💡 Chỉ ghi hình nội dung bên trong cửa sổ đã chọn, không bị che khuất bởi cửa sổ khác."
+                                                   FontSize="10" Foreground="#8892B0" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- 3. Camera PiP Controls -->
+                            <StackPanel Spacing="8" IsVisible="{Binding IsCameraPipMode}" Margin="0,4,0,0">
+                                <Border Background="#0D1322" CornerRadius="8" Padding="10" BorderBrush="#1F2D4A" BorderThickness="1">
+                                    <StackPanel Spacing="8">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Text="📷 CẤU HÌNH WEBCAM OVERLAY (PICTURE-IN-PICTURE)" FontSize="11" FontWeight="Bold" Foreground="#64B5F6" VerticalAlignment="Center" />
+                                            <Button Grid.Column="1" Content="🔄 Quét cam" Command="{Binding RefreshWebcamsCommand}"
+                                                    Background="#1E293B" Foreground="#00F0FF" FontSize="10" Padding="8,4" CornerRadius="4" />
+                                        </Grid>
+
+                                        <!-- Select Webcam -->
+                                        <StackPanel Spacing="4">
+                                            <TextBlock Text="Thiết bị Webcam:" FontSize="10" Foreground="#A0AEC0" />
+                                            <ComboBox ItemsSource="{Binding WebcamList}" SelectedItem="{Binding SelectedWebcam}"
+                                                      HorizontalAlignment="Stretch" PlaceholderText="Chọn webcam..." />
+                                        </StackPanel>
+
+                                        <!-- Overlay Position & Size -->
+                                        <Grid ColumnDefinitions="*,*">
+                                            <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,4,0">
+                                                <TextBlock Text="Vị trí góc hình:" FontSize="10" Foreground="#A0AEC0" />
+                                                <ComboBox ItemsSource="{Binding PipPositionList}" SelectedItem="{Binding SelectedPipPosition}"
+                                                          HorizontalAlignment="Stretch" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Spacing="4" Margin="4,0,0,0">
+                                                <TextBlock Text="Kích thước camera:" FontSize="10" Foreground="#A0AEC0" />
+                                                <ComboBox ItemsSource="{Binding PipSizeList}" SelectedItem="{Binding SelectedPipSize}"
+                                                          HorizontalAlignment="Stretch" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <TextBlock Text="💡 Khung hình camera sẽ được chèn trực tiếp vào góc video màn hình theo thời gian thực."
+                                                   FontSize="10" Foreground="#8892B0" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 
