@@ -122,4 +122,9 @@ public enum MusicalKey
     B
 }
 
+public enum AudioMonitorMode
+{
+    MicOnly,
+    MasterMix
+}
 

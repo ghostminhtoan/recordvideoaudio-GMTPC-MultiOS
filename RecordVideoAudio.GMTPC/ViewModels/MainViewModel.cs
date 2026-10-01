@@ -803,6 +803,98 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         MicPitchShiftSemitones = 0;
     }
 
+    // Live Audio Earback Monitoring (OBS-Style Sidetone Preview)
+    [ObservableProperty]
+    private bool isAudioMonitoringEnabled = false;
+
+    [ObservableProperty]
+    private AudioMonitorMode selectedAudioMonitorMode = AudioMonitorMode.MicOnly;
+
+    [ObservableProperty]
+    private double audioMonitoringVolume = 100.0;
+
+    [ObservableProperty]
+    private string audioMonitoringButtonText = "🎧 BẬT KIỂM ÂM TAI NGHE";
+
+    [ObservableProperty]
+    private string audioMonitoringBadgeText = "KIỂM ÂM: TẮT";
+
+    public string AudioMonitoringVolumeDisplay => $"{(int)AudioMonitoringVolume}%";
+
+    public bool IsMonitorModeMicOnly => SelectedAudioMonitorMode == AudioMonitorMode.MicOnly;
+    public bool IsMonitorModeMasterMix => SelectedAudioMonitorMode == AudioMonitorMode.MasterMix;
+
+    public string AudioMonitoringButtonBackground => IsAudioMonitoringEnabled ? "#D32F2F" : "#102A45";
+    public string AudioMonitoringButtonForeground => IsAudioMonitoringEnabled ? "#FFFFFF" : "#00F0FF";
+    public string AudioMonitoringButtonBorder => IsAudioMonitoringEnabled ? "#FF5252" : "#00F0FF";
+
+    public string MonitorMicOnlyBackground => IsMonitorModeMicOnly ? "#00F0FF" : "#1A2536";
+    public string MonitorMicOnlyForeground => IsMonitorModeMicOnly ? "#080C16" : "#A0AEC0";
+    public string MonitorMicOnlyBorder => IsMonitorModeMicOnly ? "#00F0FF" : "#1F2D4A";
+
+    public string MonitorMasterMixBackground => IsMonitorModeMasterMix ? "#FFB800" : "#1A2536";
+    public string MonitorMasterMixForeground => IsMonitorModeMasterMix ? "#080C16" : "#A0AEC0";
+    public string MonitorMasterMixBorder => IsMonitorModeMasterMix ? "#FFB800" : "#1F2D4A";
+
+    public string AudioMonitoringBadgeColor => IsAudioMonitoringEnabled ? "#00E676" : "#94A3B8";
+    public string AudioMonitoringBadgeBackground => IsAudioMonitoringEnabled ? "#143825" : "#1E293B";
+
+    partial void OnIsAudioMonitoringEnabledChanged(bool value)
+    {
+        AudioMonitoringButtonText = value ? "🔴 ĐANG BẬT KIỂM ÂM (LIVE)" : "🎧 BẬT KIỂM ÂM TAI NGHE";
+        AudioMonitoringBadgeText = value ? (SelectedAudioMonitorMode == AudioMonitorMode.MicOnly ? "🎧 KIỂM ÂM: MIC ONLY" : "🎧 KIỂM ÂM: MASTER MIX") : "KIỂM ÂM: TẮT";
+        OnPropertyChanged(nameof(AudioMonitoringButtonBackground));
+        OnPropertyChanged(nameof(AudioMonitoringButtonForeground));
+        OnPropertyChanged(nameof(AudioMonitoringButtonBorder));
+        OnPropertyChanged(nameof(AudioMonitoringBadgeColor));
+        OnPropertyChanged(nameof(AudioMonitoringBadgeBackground));
+        _engine.SetAudioMonitoring(value, SelectedAudioMonitorMode, AudioMonitoringVolume);
+    }
+
+    partial void OnSelectedAudioMonitorModeChanged(AudioMonitorMode value)
+    {
+        OnPropertyChanged(nameof(IsMonitorModeMicOnly));
+        OnPropertyChanged(nameof(IsMonitorModeMasterMix));
+        OnPropertyChanged(nameof(MonitorMicOnlyBackground));
+        OnPropertyChanged(nameof(MonitorMicOnlyForeground));
+        OnPropertyChanged(nameof(MonitorMicOnlyBorder));
+        OnPropertyChanged(nameof(MonitorMasterMixBackground));
+        OnPropertyChanged(nameof(MonitorMasterMixForeground));
+        OnPropertyChanged(nameof(MonitorMasterMixBorder));
+        if (IsAudioMonitoringEnabled)
+        {
+            AudioMonitoringBadgeText = value == AudioMonitorMode.MicOnly ? "🎧 KIỂM ÂM: MIC ONLY" : "🎧 KIỂM ÂM: MASTER MIX";
+            _engine.SetAudioMonitoring(IsAudioMonitoringEnabled, value, AudioMonitoringVolume);
+        }
+    }
+
+    partial void OnAudioMonitoringVolumeChanged(double value)
+    {
+        OnPropertyChanged(nameof(AudioMonitoringVolumeDisplay));
+        if (IsAudioMonitoringEnabled)
+        {
+            _engine.SetAudioMonitoring(IsAudioMonitoringEnabled, SelectedAudioMonitorMode, value);
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleAudioMonitoring()
+    {
+        IsAudioMonitoringEnabled = !IsAudioMonitoringEnabled;
+    }
+
+    [RelayCommand]
+    private void SetMonitorModeMicOnly()
+    {
+        SelectedAudioMonitorMode = AudioMonitorMode.MicOnly;
+    }
+
+    [RelayCommand]
+    private void SetMonitorModeMasterMix()
+    {
+        SelectedAudioMonitorMode = AudioMonitorMode.MasterMix;
+    }
+
     [ObservableProperty]
     private bool isVocalStudioModalOpen = false;
 

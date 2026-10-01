@@ -42,6 +42,9 @@ public interface IRecordingEngine : IDisposable
         bool micEcho = false, int micEchoDelayMs = 220, double micEchoFeedback = 35.0, double micEchoWetMix = 30.0,
         bool micReverb = false, double micReverbRoomSize = 50.0, double micReverbDamping = 40.0, double micReverbWetMix = 25.0,
         bool speakerAutoDucking = false);
+
+    bool IsAudioMonitoringEnabled { get; }
+    void SetAudioMonitoring(bool enabled, AudioMonitorMode mode, double volume);
 }
 
 public class RecordingEngine : IRecordingEngine
@@ -101,6 +104,12 @@ public class RecordingEngine : IRecordingEngine
     }
 
     public WasapiAudioRecorder AudioRecorder => _audioRecorder;
+    public bool IsAudioMonitoringEnabled => _audioRecorder.IsMonitoring;
+
+    public void SetAudioMonitoring(bool enabled, AudioMonitorMode mode, double volume)
+    {
+        _audioRecorder.SetMonitoring(enabled, mode, (float)(volume / 100.0));
+    }
 
     private bool _monitorMicEcho = false;
     private int _monitorMicEchoDelayMs = 220;

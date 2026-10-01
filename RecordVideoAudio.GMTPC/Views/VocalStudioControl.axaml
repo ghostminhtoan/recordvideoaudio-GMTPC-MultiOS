@@ -97,7 +97,7 @@
         </Style>
     </UserControl.Styles>
 
-    <Grid RowDefinitions="Auto,*,Auto" Margin="14">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="14">
         
         <!-- Header -->
         <Border Grid.Row="0" Background="#10192D" BorderBrush="#00F0FF" BorderThickness="1.5"
@@ -122,8 +122,82 @@
             </Grid>
         </Border>
 
+        <!-- Live Audio Earback & Combined Preview Card (OBS-Style Sidetone) -->
+        <Border Grid.Row="1" Background="#0C1424" BorderBrush="#00F0FF" BorderThickness="1.2"
+                CornerRadius="8" Padding="12,10" Margin="0,0,0,10">
+            <StackPanel Spacing="8">
+                <!-- Top Row: Title, Mode Badges, and Toggle Button -->
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <TextBlock Text="🎧" FontSize="16" VerticalAlignment="Center" />
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="KIỂM ÂM TAI NGHE THỜI GIAN THỰC (LIVE EARBACK MONITOR)" FontWeight="Bold" FontSize="11" Foreground="#00F0FF" />
+                            <TextBlock Text="Nghe trực tiếp hiệu ứng FX trên giọng hát và kiểm tra độ hòa hợp với nhạc trước khi quay" FontSize="9.5" Foreground="#8892B0" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Toggle Button -->
+                    <Button Grid.Column="2" Command="{Binding ToggleAudioMonitoringCommand}"
+                            Background="{Binding AudioMonitoringButtonBackground}"
+                            Foreground="{Binding AudioMonitoringButtonForeground}"
+                            BorderBrush="{Binding AudioMonitoringButtonBorder}"
+                            BorderThickness="1.5" FontWeight="Bold" FontSize="11"
+                            Padding="14,6" CornerRadius="6" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="{Binding AudioMonitoringButtonText}" FontWeight="Bold" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+
+                <!-- Controls Row: Mode Selector + Volume Slider + Warning -->
+                <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+                    <!-- Modes: MicOnly vs MasterMix -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <TextBlock Text="Chế độ:" FontSize="10.5" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,0,4,0" />
+                        <Button Content="🎤 Chỉ Mic FX" Command="{Binding SetMonitorModeMicOnlyCommand}"
+                                Background="{Binding MonitorMicOnlyBackground}"
+                                Foreground="{Binding MonitorMicOnlyForeground}"
+                                BorderBrush="{Binding MonitorMicOnlyBorder}"
+                                BorderThickness="1" FontWeight="SemiBold" FontSize="10.5"
+                                Padding="10,5" CornerRadius="5"
+                                ToolTip.Tip="Chỉ nghe tiếng micro đã qua các bộ xử lý FX (Không lặp lại nhạc nền đang phát từ máy)" />
+
+                        <Button Content="🎵 Master Mix (Mic + Nhạc + Ducking)" Command="{Binding SetMonitorModeMasterMixCommand}"
+                                Background="{Binding MonitorMasterMixBackground}"
+                                Foreground="{Binding MonitorMasterMixForeground}"
+                                BorderBrush="{Binding MonitorMasterMixBorder}"
+                                BorderThickness="1" FontWeight="SemiBold" FontSize="10.5"
+                                Padding="10,5" CornerRadius="5"
+                                ToolTip.Tip="Hòa trộn cả tiếng mic qua FX và nhạc nền máy tính (đã áp dụng Auto Ducking tự giảm nhạc) để kiểm tra độ hòa hợp chuẩn xác nhất" />
+                    </StackPanel>
+
+                    <!-- Volume Slider -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="14,0">
+                        <TextBlock Text="🔊 Âm lượng kiểm âm:" FontSize="10.5" Foreground="#CBD5E1" VerticalAlignment="Center" />
+                        <Slider Minimum="0" Maximum="100" Value="{Binding AudioMonitoringVolume}" Width="110" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding AudioMonitoringVolumeDisplay}" FontSize="10.5" FontWeight="Bold" Foreground="#00F0FF" Width="38" VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <!-- Status Badge -->
+                    <Border Grid.Column="2" Background="{Binding AudioMonitoringBadgeBackground}" CornerRadius="5" Padding="8,4"
+                            BorderBrush="{Binding AudioMonitoringBadgeColor}" BorderThickness="1" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding AudioMonitoringBadgeText}" FontSize="10" FontWeight="Bold" Foreground="{Binding AudioMonitoringBadgeColor}" />
+                    </Border>
+                </Grid>
+
+                <!-- Feedback Warning Note -->
+                <Border Background="#10192D" CornerRadius="4" Padding="8,4">
+                    <Grid ColumnDefinitions="Auto,*">
+                        <TextBlock Grid.Column="0" Text="⚠️" FontSize="11" Margin="0,0,6,0" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="Lưu ý: Khuyên dùng TAI NGHE khi bật kiểm âm trực tiếp để tránh hiện tượng vòng lặp âm thanh (Acoustic Feedback / hú micro) khi dùng loa ngoài."
+                                   FontSize="9.5" Foreground="#FFB800" TextWrapping="Wrap" VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
+            </StackPanel>
+        </Border>
+
         <!-- Main FX Tabs (Chữ Tab luôn Cyan sáng rực rỡ) -->
-        <TabControl Grid.Row="1">
+        <TabControl Grid.Row="2">
             
             <!-- Tab 1: Karaoke & Không gian (Echo & Reverb) -->
             <TabItem>
@@ -457,7 +531,7 @@
         </TabControl>
 
         <!-- Footer Bar -->
-        <Border Grid.Row="2" Background="#10192D" BorderBrush="#1F2D4A" BorderThickness="1"
+        <Border Grid.Row="3" Background="#10192D" BorderBrush="#1F2D4A" BorderThickness="1"
                 CornerRadius="8" Padding="12,8" Margin="0,10,0,0">
             <Grid ColumnDefinitions="*,Auto">
                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
