@@ -1,120 +1,180 @@
 # Record Video Audio - MultiOS - GMTPC 🎥🎙️
 
-Ứng dụng quay phim màn hình và phòng thu âm thanh (Vocal Studio & Karaoke FX) chuyên nghiệp, đa nền tảng (**Windows, Linux, Android**) phát triển trên nền tảng **Avalonia UI (.NET 10)**.
+Ứng dụng quay phim màn hình, xử lý hậu kỳ và phòng thu âm thanh thời gian thực (**Vocal Studio & Karaoke FX Rack**) chuyên nghiệp, đa nền tảng (**Windows, Linux, Android**) phát triển trên nền tảng **Avalonia UI (.NET 10)**.
 
-Thiết kế theo phong cách **Cyberpunk / Modern Dark** đặc trưng của hệ sinh thái GMTPC: giao diện sắc nét tương phản cao, đèn LED neon tinh tế, font số Monospace kỹ thuật số, đồng hồ thời gian thực và đồng hồ đo âm lượng VU Meter phần cứng chuẩn xác.
+Được thiết kế theo ngôn ngữ **Cyberpunk / Modern Dark** đặc trưng của hệ sinh thái GMTPC: giao diện sắc nét, tương phản cao, đèn viền Neon công nghệ, font số Monospace kỹ thuật số, đồng hồ thời gian thực và đồng hồ đo VU Meter phần cứng chuẩn xác.
 
 ---
 
-## 🌟 TÍNH NĂNG NỔI BẬT
+## 📑 MỤC LỤC
+- [1. Bảng Thông Số Kỹ Thuật (Tech Specs Matrix)](#1-bảng-thông-số-kỹ-thuật-tech-specs-matrix)
+- [2. Quay Màn Hình & Video Codecs](#2-quay-màn-hình--video-codecs)
+- [3. Audio Mixer & Ma Trận 3 Track Chuẩn OBS Studio](#3-audio-mixer--ma-trận-3-track-chuẩn-obs-studio)
+- [4. Tự Động Giảm Nhạc Khi Nói (Speaker Auto Ducking)](#4-tự-động-giảm-nhạc-khi-nói-speaker-auto-ducking)
+- [5. Vocal Studio & Karaoke FX Rack (Bàn Điều Khiển Độc Lập)](#5-vocal-studio--karaoke-fx-rack-bàn-điều-khiển-độc-lập)
+  - [Tab 1: Karaoke & Không Gian (Echo & Reverb)](#tab-1-karaoke--không-gian-echo--reverb)
+  - [Tab 2: Auto-Tune & Đổi Giọng (Pitch Shifter)](#tab-2-auto-tune--đổi-giọng-pitch-shifter)
+  - [Tab 3: Bộ Lọc Studio (Studio Polish & AI Denoise)](#tab-3-bộ-lọc-studio-studio-polish--ai-denoise)
+  - [Tab 4: Tự Động Đo Độ Trễ (Zero Latency Detector)](#tab-4-tự-động-đo-độ-trễ-zero-latency-detector)
+- [6. Quản Lý Vòng Đời & Thoát Sạch 100% (Clean Lifecycle)](#6-quản-lý-vòng-đời--thoát-sạch-100-clean-lifecycle)
+- [7. Hệ Thống Phím Tắt Toàn Cục (Global Hotkeys)](#7-hệ-thống-phím-tắt-toàn-cục-global-hotkeys)
+- [8. Thư Mục Xuất Bản Tập Trung (Dist Target)](#8-thư-mục-xuất-bản-tập-trung-dist-target)
+- [9. Hướng Dẫn Biên Dịch & Đóng Gói (Build & Publish)](#9-hướng-dẫn-biên-dịch--đóng-gói-build--publish)
 
-### 1. Quay Màn Hình Chuyên Nghiệp (Screen Recording)
+---
+
+## 1. BẢNG THÔNG SỐ KỸ THUẬT (TECH SPECS MATRIX)
+
+| Tiêu chí | Thông số kỹ thuật |
+| :--- | :--- |
+| **Nền tảng hỗ trợ** | Windows 10/11 (x64), Linux (x64 glibc), Android (API 23+) |
+| **Framework & Runtime** | .NET 10.0, C# 13, Avalonia UI 11.2 (Fluent Cyberpunk Dark Theme) |
+| **Phương thức đóng gói** | **Single-File Self-Contained** (Không cần cài đặt .NET Runtime rời) |
+| **Container Video** | **MKV** (Chống hỏng file khi crash/mất nguồn), **MP4** (FastStart chuẩn mạng xã hội) |
+| **Video Codec** | **H.264 / AVC** (Tương thích phổ quát), **HEVC / H.265** (Nén 4K siêu nét) |
+| **Audio Codec** | **AAC** (192 kbps chất lượng cao), **MP3** (192 kbps tương thích đa dụng) |
+| **Tăng tốc phần cứng** | NVIDIA NVENC, Intel QuickSync (QSV), AMD AMF, Linux VAAPI, Android MediaCodec |
+| **Điều khiển Bitrate** | **CRF** (0-51), **CQP** (0-51 cho GPU), **CBR** (Stream), **VBR** (Dung lượng kiểm soát) |
+| **Tốc độ khung hình (FPS)** | 24, 30, 60, 120 FPS |
+| **Chế độ quay hình** | Full Screen, Custom Area, Active Window, Webcam PiP (3 kích thước, 4 góc) |
+| **Xử lý âm thanh (DSP)** | WASAPI Loopback 32-bit Float, Auto Ducking, Echo, Reverb, Auto-Tune, Pitch Shifter, AI Denoise |
+| **Độ trễ xử lý (Latency)** | Tiệm cận 0ms (Zero Latency) với công nghệ đồng bộ Cross-Correlation & Matched Filter |
+
+---
+
+## 2. QUAY MÀN HÌNH & VIDEO CODECS
+
 - **4 Chế độ ghi hình linh hoạt**:
-  - 🖥️ **Toàn màn hình (Full Screen)**: Quay toàn bộ màn hình với FPS cực cao.
-  - 📐 **Vùng tùy chọn (Custom Area)**: Chọn vùng tọa độ và kích thước khung hình cần quay.
-  - 🪟 **Cửa sổ phần mềm (Active Window)**: Khóa cố định quay đúng 1 ứng dụng hoặc trò chơi cụ thể.
-  - 📷 **Webcam PiP (Picture-in-Picture)**: Lồng khung hình camera với 3 kích thước (*Small, Medium, Large*) và 4 góc màn hình tùy chọn.
-- **Bộ mã hóa Video chuẩn công nghiệp**:
-  - **H.264 / AVC**: Tương thích 100% với mọi thiết bị xem lại, máy cấu hình yếu, mạng xã hội.
-  - **HEVC / H.265**: Chuẩn nén thế hệ mới, giảm 40-50% dung lượng ở cùng độ phân giải 2K / 4K.
-- **Tăng tốc phần cứng đa nền tảng (Hardware Acceleration)**:
-  - Tự động nhận diện và kích hoạt: **NVIDIA NVENC**, **Intel QuickSync (QSV)**, **AMD AMF**, **Linux VAAPI**, **Android MediaCodec**, hoặc **Software CPU**.
-- **4 Cơ chế điều khiển Bitrate chuyên sâu (Rate Control Modes)**:
-  - **CRF (Constant Rate Factor)**: Tối ưu tự động giữa chất lượng và dung lượng file cho CPU.
-  - **CQP (Constant Quantization Parameter)**: Chuẩn vàng cho GPU Card rời (NVENC/QSV/AMF), chống drop frame và giật lag tuyệt đối.
-  - **CBR (Constant Bitrate)**: Khóa trần băng thông cố định cho livestream và phát trực tuyến.
-  - **VBR (Variable Bitrate)**: Tùy biến Target Bitrate và Max Bitrate linh hoạt.
-- **Tùy chỉnh tốc độ khung hình**: 24 FPS, 30 FPS, 60 FPS, 120 FPS.
-- **Định dạng Container an toàn**:
-  - **MKV (Matroska)**: Khuyến nghị hàng đầu, chống hỏng file (Crash-Proof) khi máy tính bị mất điện đột ngột hoặc tắt ứng dụng ngang.
-  - **MP4 (FastStart)**: Cấu hình moov atom ở đầu file, chia sẻ mạng xã hội (YouTube, TikTok, Facebook) xem được ngay.
-- **Thanh Mini Floating Bar**: Thu nhỏ thành thanh nổi tiện lợi khi đang quay, ghim góc màn hình.
+  - 🖥️ **Toàn màn hình (Full Screen)**: Quay toàn bộ không gian làm việc với độ phản hồi tức thì.
+  - 📐 **Vùng tùy chọn (Custom Area)**: Chọn tọa độ `AreaX`, `AreaY`, `Width`, `Height` theo ý muốn.
+  - 🪟 **Cửa sổ ứng dụng (Active Window)**: Khóa cố định quay đúng 1 ứng dụng hoặc trò chơi cụ thể.
+  - 📷 **Webcam PiP (Picture-in-Picture)**: Lồng camera với 3 kích cỡ (*Small, Medium, Large*) và 4 vị trí góc màn hình (*Bottom-Right, Bottom-Left, Top-Right, Top-Left*).
+- **Tăng tốc phần cứng GPU tự động**: Tự động phát hiện GPU rời (NVIDIA, Intel, AMD) để chuyển tải giải mã/mã hóa, giảm tải tối đa cho CPU.
+- **Thanh Mini Floating Bar**: Thu nhỏ thành một thanh điều khiển nổi nhỏ gọn trên màn hình khi đang quay, hỗ trợ xem đồng hồ bấm giờ, dung lượng file, FPS hiện tại và nút Tạm dừng / Dừng nhanh.
 
 ---
 
-### 2. Audio Mixer & Ma Trận Track Chuẩn OBS Studio
-- **Đồng hồ VU Meter phần cứng thời gian thực**: Đo cường độ âm thanh Loa và Micro độc lập với tần số làm tươi cao (16+ FPS).
-- **Hệ thống ma trận 3 Track âm thanh độc lập**:
-  - **Track 1**: Trộn chung (Mix Loa + Micro) để phát lại trực tiếp trên mọi phần mềm xem video mà không cần chọn luồng.
-  - **Track 2**: Chỉ tiếng Micro độc lập (thuận tiện cho việc lồng tiếng, lọc tạp âm và mix vocal trong Premiere, CapCut, DaVinci Resolve).
-  - **Track 3**: Chỉ tiếng Loa / Game / Âm thanh máy tính độc lập (thuận tiện tinh chỉnh âm lượng nhạc nền không ảnh hưởng giọng nói).
-- **🦆 Tự giảm âm lượng Loa khi nói (Speaker Auto Ducking)**:
-  - Tự động hạ nhỏ âm lượng loa/nhạc nền xuống **-14dB (20%)** khi micro phát hiện giọng nói hoặc tiếng hát.
-  - Thuật toán Envelope DSP làm mượt với **Fast Attack (~20ms)** và **Smooth Release (~400ms)**: Không gây hiện tượng giật tiếng hay méo âm (pumping artifacts).
-  - Tự động phục hồi 100% âm lượng ban đầu khi người dùng ngừng nói.
-  - Checkbox Bật/Tắt tức thì ngay tại Channel 1: Speaker Input và trong Studio FX.
-- **Bù trừ độ trễ đồng bộ (Audio Sync Offset)**:
-  - Tinh chỉnh bù trừ lệch tiếng Loa và Micro từ `-500ms` đến `+1000ms`.
-  - Tăng/giảm khuếch đại âm lượng độc lập từ `-50.0 dB` đến `+50.0 dB`.
+## 3. AUDIO MIXER & MA TRẬN 3 TRACK CHUẨN OBS STUDIO
+
+Hệ thống âm thanh được xây dựng trên lõi **Windows WASAPI Hardware Loopback** với ma trận định tuyến 3 track âm thanh độc lập:
+
+```text
+               ┌────────────────────────┐
+               │  Loa / Âm thanh máy    │
+               └───────────┬────────────┘
+                           │ (Ducking / Gain / Offset)
+                           ▼
+ ┌───────────────┐   ┌───────────┐   ┌───────────────────────────┐
+ │ Micro & Vocal ├──►│ Audio DSP ├──►│ Track 1: Mix Loa + Micro  │ (Xem ngay mọi trình phát)
+ └───────────────┘   └───────────┘   ├───────────────────────────┤
+                           │         │ Track 2: Micro độc lập    │ (Lồng tiếng / Edit vocal)
+                           │         ├───────────────────────────┤
+                           └────────►│ Track 3: Loa độc lập      │ (Cân chỉnh âm lượng game/nhạc)
+                                     └───────────────────────────┘
+```
+
+- **Track 1**: Trộn chung (Loa + Micro) giúp xem lại video trực tiếp mà không cần cấu hình luồng âm thanh.
+- **Track 2**: Chỉ tiếng Micro độc lập (đã qua lọc ồn AI và hiệu ứng phòng thu), phục vụ hậu kỳ trong Premiere, CapCut, DaVinci Resolve.
+- **Track 3**: Chỉ tiếng Loa / Game / Nhạc nền độc lập, giúp chỉnh âm lượng nhạc nền mà không đè giọng nói.
 
 ---
 
-### 3. Vocal Studio & Karaoke FX Rack (Bàn Điều Khiển Độc Lập)
-Cửa sổ Vocal Studio hoạt động **hoàn toàn độc lập** với MainWindow:
-- Có biểu tượng riêng trên thanh Taskbar.
-- Khi Minimize cửa sổ Studio, cửa sổ chính MainWindow vẫn hoạt động bình thường, không bị ẩn hay tắt.
-- Toàn bộ tab điều khiển được phủ màu **Cyan công nghệ cao** sáng rõ ở mọi trạng thái.
+## 4. TỰ ĐỘNG GIẢM NHẠC KHI NÓI (SPEAKER AUTO DUCKING)
 
-#### Gồm 4 Tab tính năng chuyên sâu:
-1. 🎤 **KARAOKE & KHÔNG GIAN (ECHO & REVERB)**:
-   - **Karaoke Stereo Echo**: Mô phỏng tiếng vang lặp lại đặc trưng của dàn âm thanh phòng hát Karaoke gia đình và sân khấu chuyên nghiệp. Tùy chỉnh độ trễ Delay (50ms - 500ms), độ vang vọng Feedback (0 - 90%), tỷ lệ trộn Wet Mix (0 - 100%).
-   - **Schroeder-Moorer Studio Reverb**: Tạo âm vang không gian phòng hòa nhạc (Concert Hall) hoặc phòng thu âm (Studio Plate) giúp giọng hát dày dặn, mượt mà và bay bổng hơn. Tùy chỉnh Room Size (10 - 95%), Hấp thụ dải cao Damping (0 - 100%), Wet Mix (0 - 100%).
-2. 🎵 **AUTO-TUNE & ĐỔI GIỌNG (PITCH SHIFTER)**:
-   - **Auto-Tune Pitch Correction**: Nắn chỉnh cao độ giọng hát theo chuẩn phòng thu thời gian thực. Hỗ trợ 12 cung nốt (Key C đến B), Scale (Chromatic, Major, Minor), và tốc độ can thiệp giọng nói Speed (từ 0ms Hard Robot kiểu Travis Scott đến 100ms nhẹ nhàng tự nhiên).
-   - **Real-Time Pitch Shifter**: Dịch chuyển cao độ từ `-12` đến `+12` bán âm (giọng trầm nam, giọng cao nữ, giọng hoạt hình) với giải thuật pha liên tục (Continuous Phase Overlap-Add) không bị ngắt quãng hay giật cục âm thanh.
-3. 🎙️ **BỘ LỌC STUDIO (STUDIO VOCAL POLISH)**:
-   - **Lọc ồn AI (RNNoise Engine)**: Triệt tiêu sạch sẽ 100% tiếng ồn quạt máy tính, tiếng gõ phím cơ, ve kêu ngoài trời và tiếng sôi xì của micro.
-   - **High-Pass Filter 80Hz**: Cắt sạch tần số siêu trầm do rung bàn phím hoặc hơi thở phả vào micro.
-   - **Smooth Noise Gate**: Cổng ngắt ồn thông minh có thời gian giữ (350ms Hold Time) chống nuốt chữ cuối câu.
-   - **Dynamic Compressor**: Tự động ghìm âm lượng khi người dùng nói to hoặc hét vào micro, triệt tiêu 100% hiện tượng vỡ rè tiếng.
-   - **De-Esser**: Khử êm dịu các âm xì chói tai 's', 'x', 'ch'.
-   - **3-Band Vocal EQ**: Lựa chọn các preset âm sắc chuyên biệt (*Natural, Broadcast Warmth, Crystal Clear, Podcast Studio*).
-4. ⏱️ **TỰ ĐỘNG ĐO ĐỘ TRỄ (AUTO LATENCY DETECTOR - ZERO LATENCY)**:
-   - **Phương pháp 1 (Hold-To-Measure khi hát theo nhạc karaoke)**:
-     - Mở bài hát karaoke trên loa/tai nghe, **nhấn giữ chuột** vào nút đo và hát theo 2-5 giây, sau đó **buông chuột ra**.
-     - Thuật toán phân tích tương quan chéo đường bao năng lượng (**Energy Envelope Normalized Cross-Correlation**) sẽ so sánh 2 luồng sóng âm Loa và Micro để tính ra chính xác độ lệch mili giây (ms).
-   - **Phương pháp 2 (Pulse Calibration)**:
-     - Phát xung âm bíp 25ms qua loa và dùng thuật toán phản xạ sóng **Matched Filter** đo độ trễ phần cứng với độ chính xác `±1ms`.
-   - **Nút "✅ Áp dụng vào Mic Offset"**: Tự động bù trừ độ lệch tiếng vào hệ thống chỉ với một click chuột.
+- **Nguyên lý hoạt động**:
+  - Theo dõi liên tục đường bao năng lượng giọng nói của Micro (`_micVoiceEnvelope`).
+  - Khi phát hiện người dùng bắt đầu nói hoặc hát (`_micVoiceEnvelope > 0.012f`), âm lượng loa/nhạc nền tự động được hạ xuống **-14dB (20%)**.
+  - **Làm mượt tự nhiên (Smooth Envelope Attack & Release)**:
+    - **Fast Attack (~20ms)**: Âm lượng loa hạ ngay lập tức khi phát âm, không bị lọt âm đầu câu.
+    - **Smooth Release (~400ms)**: Âm lượng loa từ từ phục hồi nhẹ nhàng về 100% khi dứt lời, không gây cảm giác giật cục hay méo tiếng (pumping).
+- **Điều khiển tiện lợi**: Có Checkbox Bật/Tắt tức thì ngay tại Channel 1: Speaker Input trên giao diện chính và tại Tab 3 của bàn Vocal Studio.
 
 ---
 
-### 4. Hệ Thống Phím Tắt Toàn Cục (Global Hotkeys)
-Hoạt động xuyên suốt ngay cả khi đang chơi game Fullscreen hoặc chạy ẩn:
-- **Phím tắt Quay / Dừng (Record/Stop)**:
+## 5. VOCAL STUDIO & KARAOKE FX RACK (BÀN ĐIỀU KHIỂN ĐỘC LẬP)
+
+Cửa sổ Vocal Studio được thiết kế hoạt động **hoàn toàn độc lập** với cửa sổ chính (MainWindow):
+- Có biểu tượng taskbar riêng biệt.
+- Khi người dùng **Minimize** cửa sổ Studio xuống taskbar, **cửa sổ chính MainWindow không bị ảnh hưởng, không bị ẩn hay tắt**.
+- Toàn bộ tab điều khiển được cấu hình bằng màu **Cyan công nghệ cao (#00F0FF)** sáng rực rỡ ở mọi trạng thái.
+
+### Tab 1: Karaoke & Không Gian (Echo & Reverb)
+- **Karaoke Stereo Echo (Delay lặp tiếng)**:
+  - Tái hiện hiệu ứng tiếng vang lặp lại của dàn Karaoke gia đình và phòng thu âm.
+  - Tùy chỉnh: Độ trễ Delay (50ms - 500ms), Độ vang vọng Feedback (0% - 90%), Tỷ lệ tiếng vang Wet Mix (0% - 100%).
+- **Schroeder-Moorer Studio Reverb (Âm vang không gian)**:
+  - Mô phỏng không gian phòng hòa nhạc (Concert Hall) và phòng thu (Studio Plate) giúp giọng hát dày dặn, ấm áp và bay bổng.
+  - Tùy chỉnh: Kích thước phòng Room Size (10% - 95%), Hấp thụ dải cao Damping (0% - 100%), Độ hòa trộn Wet Mix (0% - 100%).
+
+### Tab 2: Auto-Tune & Đổi Giọng (Pitch Shifter)
+- **Auto-Tune Pitch Correction**:
+  - Tự động nắn chỉnh cao độ giọng hát theo thang âm chuẩn phòng thu.
+  - Hỗ trợ đầy đủ **12 cung nốt nhạc** (Key C, Db, D, Eb, E, F, Gb, G, Ab, A, Bb, B).
+  - Hỗ trợ **3 thang âm**: Chromatic (Bán âm tự do), Major (Trưởng), Minor (Thứ).
+  - Tốc độ can thiệp giọng nói (Speed): Từ 0ms (Hard Robot kiểu Travis Scott) đến 100ms (nhẹ nhàng, tự nhiên).
+- **Real-Time Pitch Shifter (Đổi giọng thời gian thực)**:
+  - Dịch chuyển cao độ giọng nói từ **-12 bán âm** (giọng trầm, quái vật, nam trầm) đến **+12 bán âm** (giọng sóc chuột, trẻ em, nữ cao).
+  - Thuật toán pha liên tục (**Continuous Phase Overlap-Add**): Chuyển đổi mượt mà, không bị đứt quãng hay rè tiếng.
+
+### Tab 3: Bộ Lọc Studio (Studio Polish & AI Denoise)
+- **Lọc ồn AI (RNNoise Engine)**: Triệt tiêu 100% tiếng ồn quạt tản nhiệt, gõ phím cơ, tiếng sôi xì micro và tiếng xe cộ ngoài đường.
+- **High-Pass Filter 80Hz**: Cắt toàn bộ dải siêu trầm gây ù do rung bàn phím hoặc luồng hơi thở.
+- **Smooth Noise Gate**: Cổng ngắt tiếng ồn tự động khi ngừng nói, có thời gian giữ 350ms Hold Time để không bị cụt âm cuối từ.
+- **Dynamic Compressor (Chống vỡ rè)**: Tự động ghìm âm lượng khi hét to hoặc hát nốt cao, bảo vệ tai người nghe và ngăn méo tiếng 100%.
+- **De-Esser**: Khử êm dịu các âm xì chói tai 's', 'x', 'ch'.
+- **3-Band Vocal EQ**: Lựa chọn 4 cấu hình âm sắc: *Natural*, *Broadcast Warmth*, *Crystal Clear*, *Podcast Studio*.
+- **Auto Ducking Toggle**: Bật/tắt tính năng tự giảm nhạc khi nói.
+
+### Tab 4: Tự Động Đo Độ Trễ (Zero Latency Detector)
+Giải quyết triệt để vấn đề hát karaoke bị chậm tiếng hoặc lệch nhịp so với nhạc nền:
+- **Phương pháp 1 (Hold-To-Measure khi hát theo nhạc)**:
+  - Mở bài hát karaoke trên loa, **nhấn và giữ chuột** vào nút đo và hát theo lời nhạc 2-5 giây, sau đó **buông chuột ra**.
+  - Hệ thống tự động phân tích tương quan chéo đường bao năng lượng (**Energy Envelope Normalized Cross-Correlation**) giữa luồng Loa và luồng Micro để tìm ra chính xác độ trễ (ms).
+- **Phương pháp 2 (Pulse Calibration)**:
+  - Phát 1 xung âm bíp 25ms qua loa và dùng bộ lọc **Matched Filter** đo độ trễ phần cứng với độ chính xác `±1ms`.
+- **Nút "✅ Áp dụng vào Mic Offset"**: Tự động bù trừ độ lệch tiếng vào hệ thống chỉ với một cú click chuột.
+
+---
+
+## 6. QUẢN LÝ VÒNG ĐỜI & THOÁT SẠCH 100% (CLEAN LIFECYCLE)
+
+- Thiết lập `ShutdownMode.OnMainWindowClose` tại `App.axaml.cs`.
+- Tự động đóng toàn bộ các cửa sổ phụ (`VocalStudioWindow`, `FloatingMiniBarWindow`).
+- Tự động giải phóng Win32 Keyboard Hook (`UnhookWindowsHookEx`), dọn dẹp các đối tượng COM của Windows Audio (WASAPI), giải phóng Timer và dừng tiến trình FFmpeg dở dang.
+- Thực hiện thoát dứt điểm `Environment.Exit(0)`: **Bảo đảm 100% không còn bất kỳ tiến trình nào chạy ngầm sau khi đóng cửa sổ chính**.
+
+---
+
+## 7. HỆ THỐNG PHÍM TẮT TOÀN CỤC (GLOBAL HOTKEYS)
+
+Hoạt động xuyên suốt ngay cả khi đang chơi game Fullscreen hoặc ứng dụng đang ở chế độ nền:
+- **Bắt đầu / Dừng quay (Record / Stop)**:
   - Mặc định: `Ctrl + Alt + Shift + D5`
-  - Dự phòng: `F8`
-- **Phím tắt Tạm dừng / Tiếp tục (Pause/Resume)**:
+  - Phím dự phòng: `F8`
+- **Tạm dừng / Tiếp tục (Pause / Resume)**:
   - Mặc định: `Ctrl + Alt + Shift + D8`
-  - Dự phòng: `F9`
-- Hỗ trợ tùy biến linh hoạt tổ hợp phím theo ý thích người dùng.
+  - Phím dự phòng: `F9`
+- Hỗ trợ người dùng tự do thiết lập lại tổ hợp phím theo nhu cầu sử dụng.
 
 ---
 
-### 5. Song Ngữ & Quản Lý Vòng Đời Tinh Gọn
-- **Chuyển đổi ngôn ngữ tức thì**: Hỗ trợ đầy đủ **Tiếng Việt (VI)** và **Tiếng Anh (EN)**.
-- **Thoát sạch 100% (Clean Exit)**:
-  - Tắt cửa sổ chính MainWindow là ứng dụng giải phóng toàn bộ tài nguyên (Timers, WASAPI Audio, Win32 Hooks, FFmpeg processes) và thoát dứt điểm, **tuyệt đối không chạy ngầm**.
+## 8. THƯ MỤC XUẤT BẢN TẬP TRUNG (DIST TARGET)
 
----
-
-## 📁 CẤU TRÚC THƯ MỤC XUẤT BẢN (DIST)
-
-Theo quy chuẩn kỹ thuật GMTPC, toàn bộ file thực thi độc lập (Single-File Self-Contained) của mọi nền tảng bắt buộc nằm chung trong **DUY NHẤT một thư mục**:
+Toàn bộ gói cài đặt và file chạy độc lập của mọi nền tảng được thu thập về **CHUNG MỘT THƯ MỤC DUY NHẤT** tại:
 
 ```text
 r:\HDD R\ZC SYMLINK\USERS\source\repos\ghostminhtoan\record video - GMTPC\dist\
-├── RecordVideoAudio.GMTPC.exe       # Windows (x64) Single-File Self-Contained (Không cần cài .NET)
-├── RecordVideoAudio.GMTPC-linux     # Linux (x64) Single-File Self-Contained
-├── RecordVideoAudio.GMTPC.apk       # Android Signed APK Package
-├── windows/                         # Bản Windows kèm thư viện phụ trợ
-├── linux/                           # Bản Linux độc lập
-└── android/                         # Gói cài đặt Android
+├── RecordVideoAudio.GMTPC.exe       # Windows (x64) Single-File Self-Contained (~47 MB)
+├── RecordVideoAudio.GMTPC-linux     # Linux (x64) Single-File Self-Contained (~47 MB)
+├── RecordVideoAudio.GMTPC.apk       # Android Signed APK Package (~64 MB)
+├── windows/                         # Thư mục Windows độc lập
+├── linux/                           # Thư mục Linux độc lập
+└── android/                         # Thư mục Android độc lập
 ```
 
 ---
 
-## 🛠️ HƯỚNG DẪN XÂY DỰNG & ĐÓNG GÓI (BUILD)
+## 9. HƯỚNG DẪN BIÊN DỊCH & ĐÓNG GÓI (BUILD & PUBLISH)
 
 ### Yêu cầu môi trường
 - .NET SDK 10.0 trở lên.
@@ -137,3 +197,4 @@ powershell -ExecutionPolicy Bypass -File .\publish-all-platforms.ps1
 - **Tác giả**: GMTPC (ghostminhtoan)
 - **Email liên hệ**: ghostminhtoan@gmail.com
 - **Mã nguồn GitHub**: [ghostminhtoan/recordvideoaudio-GMTPC-MultiOS](https://github.com/ghostminhtoan/recordvideoaudio-GMTPC-MultiOS)
+- **Nhánh chính thức**: `main`
