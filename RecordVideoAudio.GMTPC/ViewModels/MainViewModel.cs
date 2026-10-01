@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -91,6 +92,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         // Sync initial audio monitoring state with hardware meter
         UpdateAudioMonitoring();
+
+        // Background silent check for updates on startup
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(2500);
+            await CheckForUpdatesSilentlyAsync();
+        });
 
         // Global hotkey hook (Default: Ctrl+Alt+Shift+D5 for Record, Ctrl+Alt+Shift+D8 for Pause)
         _hotKeyService = new GlobalHotKeyService();
@@ -947,6 +955,238 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
         catch { }
     }
+
+    #region Auto Update
+
+    [ObservableProperty]
+    private bool isUpdateModalOpen = false;
+
+    [ObservableProperty]
+    private bool isCheckingForUpdate = false;
+
+    [ObservableProperty]
+    private bool isDownloadingUpdate = false;
+
+    [ObservableProperty]
+    private bool isUpdateAvailable = false;
+
+    [ObservableProperty]
+    private bool hasUpdateNotification = false;
+
+    [ObservableProperty]
+    private string updateHeaderButtonText = "🔄 CẬP NHẬT";
+
+    [ObservableProperty]
+    private string updateHeaderButtonBackground = "#1E293B";
+
+    [ObservableProperty]
+    private string updateHeaderButtonForeground = "#00F0FF";
+
+    [ObservableProperty]
+    private string updateHeaderButtonBorder = "#00F0FF";
+
+    [ObservableProperty]
+    private string updateStatusMessage = "Sẵn sàng kiểm tra phiên bản mới trên máy chủ.";
+
+    [ObservableProperty]
+    private string updateStatusColor = "#00F0FF";
+
+    [ObservableProperty]
+    private double updateProgressPercent = 0.0;
+
+    [ObservableProperty]
+    private string updateProgressText = string.Empty;
+
+    [ObservableProperty]
+    private string updateActionButtonText = "TẢI VÀ CẬP NHẬT NGAY";
+
+    [ObservableProperty]
+    private string updatePlatformDisplay = AutoUpdateService.Instance.CurrentPlatformName;
+
+    [ObservableProperty]
+    private string currentVersionDisplay = "v1.0.0 (Build GMTPC MultiOS)";
+
+    [ObservableProperty]
+    private string remoteReleaseTagDisplay = "release";
+
+    [ObservableProperty]
+    private string remoteReleaseDateDisplay = "Chưa kiểm tra";
+
+    [ObservableProperty]
+    private string remoteFileSizeDisplay = "Chưa rõ";
+
+    [ObservableProperty]
+    private string targetUpdateFileNameDisplay = AutoUpdateService.Instance.TargetFileName;
+
+    [ObservableProperty]
+    private string targetDownloadUrlDisplay = AutoUpdateService.Instance.TargetDownloadUrl;
+
+    private CancellationTokenSource? _updateCts;
+
+    public async Task CheckForUpdatesSilentlyAsync()
+    {
+        try
+        {
+            var res = await AutoUpdateService.Instance.CheckForUpdatesAsync();
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                ApplyUpdateCheckResult(res, false);
+            });
+        }
+        catch { }
+    }
+
+    [RelayCommand]
+    public async Task CheckForUpdatesAsync()
+    {
+        if (IsCheckingForUpdate || IsDownloadingUpdate) return;
+        IsCheckingForUpdate = true;
+        UpdateStatusMessage = "Đang kiểm tra bản phát hành trên máy chủ GitHub...";
+        UpdateStatusColor = "#00F0FF";
+
+        try
+        {
+            var res = await AutoUpdateService.Instance.CheckForUpdatesAsync();
+            ApplyUpdateCheckResult(res, true);
+        }
+        catch (Exception ex)
+        {
+            UpdateStatusMessage = $"Lỗi kiểm tra cập nhật: {ex.Message}";
+            UpdateStatusColor = "#FF5252";
+        }
+        finally
+        {
+            IsCheckingForUpdate = false;
+        }
+    }
+
+    private void ApplyUpdateCheckResult(UpdateCheckResult res, bool updateStatusOnUpToDate)
+    {
+        RemoteReleaseTagDisplay = res.TagName;
+        RemoteReleaseDateDisplay = res.RemoteReleaseDateUtc.HasValue
+            ? res.RemoteReleaseDateUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")
+            : "Chưa rõ ngày";
+
+        RemoteFileSizeDisplay = res.RemoteFileSize > 0
+            ? $"{res.RemoteFileSize / (1024.0 * 1024.0):F2} MB"
+            : "Tự động";
+
+        TargetDownloadUrlDisplay = res.DownloadUrl;
+        TargetUpdateFileNameDisplay = res.TargetFileName;
+
+        IsUpdateAvailable = res.IsUpdateAvailable;
+        HasUpdateNotification = res.IsUpdateAvailable;
+
+        if (res.IsUpdateAvailable)
+        {
+            UpdateHeaderButtonText = "⚡ CÓ BẢN MỚI";
+            UpdateHeaderButtonBackground = "#D97706";
+            UpdateHeaderButtonForeground = "#FFFFFF";
+            UpdateHeaderButtonBorder = "#FFE600";
+            UpdateStatusMessage = res.StatusMessage;
+            UpdateStatusColor = "#FFB800";
+            UpdateActionButtonText = OperatingSystem.IsWindows()
+                ? "🚀 TẢI VÀ TỰ ĐỘNG CẬP NHẬT"
+                : (OperatingSystem.IsAndroid() ? "📲 TẢI & CÀI ĐẶT APK" : "TẢI BẢN MỚI");
+        }
+        else
+        {
+            UpdateHeaderButtonText = "🔄 CẬP NHẬT";
+            UpdateHeaderButtonBackground = "#1E293B";
+            UpdateHeaderButtonForeground = "#00F0FF";
+            UpdateHeaderButtonBorder = "#1F2D4A";
+            if (updateStatusOnUpToDate)
+            {
+                UpdateStatusMessage = res.StatusMessage;
+                UpdateStatusColor = "#00E676";
+            }
+            UpdateActionButtonText = OperatingSystem.IsWindows()
+                ? "🚀 TẢI LẠI BẢN MỚI NHẤT"
+                : (OperatingSystem.IsAndroid() ? "📲 TẢI LẠI APK MỚI NHẤT" : "TẢI BẢN MỚI");
+        }
+    }
+
+    [RelayCommand]
+    public async Task StartAutoUpdateAsync()
+    {
+        if (IsDownloadingUpdate) return;
+        IsDownloadingUpdate = true;
+        UpdateProgressPercent = 0.0;
+        UpdateProgressText = "Đang kết nối...";
+        UpdateStatusMessage = "Đang tải gói cập nhật từ GitHub...";
+        UpdateStatusColor = "#00F0FF";
+
+        _updateCts = new CancellationTokenSource();
+
+        try
+        {
+            string downloadedPath = await AutoUpdateService.Instance.DownloadUpdateAsync(
+                TargetDownloadUrlDisplay,
+                (percent, progressText) =>
+                {
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                    {
+                        UpdateProgressPercent = percent;
+                        UpdateProgressText = progressText;
+                    });
+                },
+                _updateCts.Token
+            );
+
+            UpdateStatusMessage = "Tải thành công! Đang tiến hành áp dụng bản cập nhật...";
+            UpdateStatusColor = "#00E676";
+            UpdateProgressPercent = 100.0;
+
+            await Task.Delay(600);
+            AutoUpdateService.Instance.ApplyUpdateAndRestart(downloadedPath);
+        }
+        catch (OperationCanceledException)
+        {
+            UpdateStatusMessage = "Đã hủy tải bản cập nhật.";
+            UpdateStatusColor = "#CBD5E1";
+        }
+        catch (Exception ex)
+        {
+            UpdateStatusMessage = $"Lỗi khi tải hoặc cài đặt: {ex.Message}";
+            UpdateStatusColor = "#FF5252";
+        }
+        finally
+        {
+            IsDownloadingUpdate = false;
+            _updateCts?.Dispose();
+            _updateCts = null;
+        }
+    }
+
+    [RelayCommand]
+    public void CancelUpdate()
+    {
+        _updateCts?.Cancel();
+    }
+
+    [RelayCommand]
+    public void OpenUpdateDialog()
+    {
+        IsUpdateModalOpen = true;
+        if (RemoteReleaseDateDisplay == "Chưa kiểm tra")
+        {
+            _ = CheckForUpdatesAsync();
+        }
+    }
+
+    [RelayCommand]
+    public void CloseUpdateDialog()
+    {
+        IsUpdateModalOpen = false;
+    }
+
+    [RelayCommand]
+    public void OpenReleaseWebPage()
+    {
+        AutoUpdateService.OpenUrl(TargetDownloadUrlDisplay);
+    }
+
+    #endregion
 
     [RelayCommand]
     private async Task CalibrateLatencyWithPulseAsync()

@@ -1,0 +1,148 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:RecordVideoAudio.GMTPC.ViewModels"
+             x:Class="RecordVideoAudio.GMTPC.Views.AutoUpdateControl"
+             x:DataType="vm:MainViewModel"
+             Background="#B3000000">
+
+    <Grid VerticalAlignment="Center" HorizontalAlignment="Center" Margin="20" MaxWidth="680" Width="640">
+        <!-- Main Card Border -->
+        <Border Background="#0C1424" BorderBrush="#00F0FF" BorderThickness="1.5"
+                CornerRadius="12" Padding="20" BoxShadow="0 8 32 #80000000">
+            <StackPanel Spacing="16">
+
+                <!-- Header -->
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                        <Border Width="36" Height="36" Background="#102540" BorderBrush="#00F0FF" BorderThickness="1.5" CornerRadius="8">
+                            <TextBlock Text="⚡" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="GMTPC AUTO-UPDATE SYSTEM" FontWeight="Bold" FontSize="14" Foreground="#00F0FF" />
+                            <TextBlock Text="Hệ thống cập nhật tự động đa nền tảng (Windows .exe &amp; Android .apk)" FontSize="10" Foreground="#8892B0" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <Button Grid.Column="1" Content="✕" Command="{Binding CloseUpdateDialogCommand}"
+                            Background="#1E293B" Foreground="#CBD5E1" FontWeight="Bold" FontSize="12"
+                            CornerRadius="6" Padding="10,4" VerticalAlignment="Center" />
+                </Grid>
+
+                <Border Height="1" Background="#1F2D4A" />
+
+                <!-- Info Grid -->
+                <Border Background="#10192D" CornerRadius="8" Padding="14" BorderBrush="#1F2D4A" BorderThickness="1">
+                    <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,*">
+                        <!-- Platform & Local Version -->
+                        <StackPanel Grid.Row="0" Grid.Column="0" Spacing="4" Margin="0,0,10,10">
+                            <TextBlock Text="NỀN TẢNG THỰC THI:" FontSize="10" FontWeight="Bold" Foreground="#8892B0" />
+                            <TextBlock Text="{Binding UpdatePlatformDisplay}" FontSize="12" FontWeight="SemiBold" Foreground="#00F0FF" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="0" Grid.Column="1" Spacing="4" Margin="10,0,0,10">
+                            <TextBlock Text="PHIÊN BẢN HIỆN TẠI:" FontSize="10" FontWeight="Bold" Foreground="#8892B0" />
+                            <TextBlock Text="{Binding CurrentVersionDisplay}" FontSize="12" FontWeight="SemiBold" Foreground="#64B5F6" />
+                        </StackPanel>
+
+                        <!-- GitHub Release & Date -->
+                        <StackPanel Grid.Row="1" Grid.Column="0" Spacing="4" Margin="0,0,10,10">
+                            <TextBlock Text="BẢN PHÁT HÀNH (GITHUB):" FontSize="10" FontWeight="Bold" Foreground="#8892B0" />
+                            <TextBlock Text="{Binding RemoteReleaseTagDisplay}" FontSize="12" FontWeight="SemiBold" Foreground="#FFB800" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="1" Grid.Column="1" Spacing="4" Margin="10,0,0,10">
+                            <TextBlock Text="THỜI GIAN PHÁT HÀNH:" FontSize="10" FontWeight="Bold" Foreground="#8892B0" />
+                            <TextBlock Text="{Binding RemoteReleaseDateDisplay}" FontSize="12" FontWeight="SemiBold" Foreground="#CBD5E1" />
+                        </StackPanel>
+
+                        <!-- File Name & Size -->
+                        <StackPanel Grid.Row="2" Grid.Column="0" Spacing="4" Margin="0,0,10,0">
+                            <TextBlock Text="FILE CẬP NHẬT ĐÍCH:" FontSize="10" FontWeight="Bold" Foreground="#8892B0" />
+                            <TextBlock Text="{Binding TargetUpdateFileNameDisplay}" FontSize="11" FontWeight="SemiBold" Foreground="#00E676" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="2" Grid.Column="1" Spacing="4" Margin="10,0,0,0">
+                            <TextBlock Text="DUNG LƯỢNG GÓI CẬP NHẬT:" FontSize="10" FontWeight="Bold" Foreground="#8892B0" />
+                            <TextBlock Text="{Binding RemoteFileSizeDisplay}" FontSize="12" FontWeight="SemiBold" Foreground="#00E676" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Status Banner & Progress Bar -->
+                <Border Background="#10192D" CornerRadius="8" Padding="14" BorderBrush="#1F2D4A" BorderThickness="1">
+                    <StackPanel Spacing="10">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Text="{Binding UpdateStatusMessage}" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{Binding UpdateStatusColor}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            <TextBlock Grid.Column="1" Text="{Binding UpdateProgressText}" FontSize="11" FontWeight="Bold"
+                                       Foreground="#00F0FF" VerticalAlignment="Center"
+                                       IsVisible="{Binding IsDownloadingUpdate}" />
+                        </Grid>
+
+                        <!-- Progress Bar (Visible while downloading) -->
+                        <ProgressBar Minimum="0" Maximum="100" Value="{Binding UpdateProgressPercent}"
+                                     Height="8" Background="#1E293B" Foreground="#00F0FF" CornerRadius="4"
+                                     IsVisible="{Binding IsDownloadingUpdate}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Direct GitHub Source Note -->
+                <Border Background="#080D18" CornerRadius="6" Padding="10,6" BorderBrush="#1F2D4A" BorderThickness="1">
+                    <Grid ColumnDefinitions="Auto,*">
+                        <TextBlock Grid.Column="0" Text="🔗" FontSize="11" Margin="0,0,6,0" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="{Binding TargetDownloadUrlDisplay}"
+                                   FontSize="9.5" Foreground="#64748B" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                   ToolTip.Tip="{Binding TargetDownloadUrlDisplay}" />
+                    </Grid>
+                </Border>
+
+                <!-- Action Buttons Deck -->
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                    <!-- Main Update Action Button -->
+                    <Button Grid.Column="0" Command="{Binding StartAutoUpdateCommand}"
+                            IsEnabled="{Binding !IsDownloadingUpdate}"
+                            Background="#00F0FF" Foreground="#080C16" FontWeight="Bold" FontSize="12"
+                            CornerRadius="8" Padding="16,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                            ToolTip.Tip="Tải xuống và tự động cập nhật ngay lập tức">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="🚀" />
+                            <TextBlock Text="{Binding UpdateActionButtonText}" FontWeight="Bold" />
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Check Again Button -->
+                    <Button Grid.Column="1" Command="{Binding CheckForUpdatesCommand}"
+                            IsEnabled="{Binding !IsDownloadingUpdate}"
+                            Background="#1E293B" Foreground="#CBD5E1" FontWeight="SemiBold" FontSize="11"
+                            CornerRadius="8" Padding="12,10" Margin="8,0,0,0" VerticalAlignment="Center"
+                            ToolTip.Tip="Kiểm tra lại từ máy chủ GitHub">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="🔄" />
+                            <TextBlock Text="Kiểm tra lại" />
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Open in Browser Fallback Button -->
+                    <Button Grid.Column="2" Command="{Binding OpenReleaseWebPageCommand}"
+                            Background="#102540" Foreground="#64B5F6" BorderBrush="#1E3A5F" BorderThickness="1"
+                            FontWeight="SemiBold" FontSize="11"
+                            CornerRadius="8" Padding="12,10" Margin="8,0,0,0" VerticalAlignment="Center"
+                            ToolTip.Tip="Mở trang phát hành hoặc tải trực tiếp bằng trình duyệt mạng">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="🌐" />
+                            <TextBlock Text="Mở Trình Duyệt" />
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Close Button -->
+                    <Button Grid.Column="3" Command="{Binding CloseUpdateDialogCommand}"
+                            Background="#1E293B" Foreground="#94A3B8" FontWeight="SemiBold" FontSize="11"
+                            CornerRadius="8" Padding="12,10" Margin="8,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="Đóng" />
+                    </Button>
+                </Grid>
+
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

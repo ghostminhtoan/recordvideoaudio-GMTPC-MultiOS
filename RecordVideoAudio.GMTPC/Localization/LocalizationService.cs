@@ -159,6 +159,26 @@ public class LocalizationService
         {
             [LanguageMode.Vietnamese] = "Đã lưu video thành công tại:",
             [LanguageMode.English] = "Video saved successfully to:"
+        },
+        ["AutoUpdateTitle"] = new()
+        {
+            [LanguageMode.Vietnamese] = "HỆ THỐNG CẬP NHẬT TỰ ĐỘNG (AUTO-UPDATE)",
+            [LanguageMode.English] = "AUTO-UPDATE SYSTEM"
+        },
+        ["CheckUpdate"] = new()
+        {
+            [LanguageMode.Vietnamese] = "Kiểm tra cập nhật",
+            [LanguageMode.English] = "Check for Updates"
+        },
+        ["DownloadAndInstall"] = new()
+        {
+            [LanguageMode.Vietnamese] = "Tải & Cập nhật ngay",
+            [LanguageMode.English] = "Download & Install Update"
+        },
+        ["OpenBrowserDownload"] = new()
+        {
+            [LanguageMode.Vietnamese] = "Mở link tải trình duyệt",
+            [LanguageMode.English] = "Open Download Link in Browser"
         }
     };
 }
