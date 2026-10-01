@@ -351,10 +351,7 @@
                                             <TextBlock Text="Mở nhạc karaoke trên loa, NHẤN GIỮ CHUỘT vào nút bên dưới và hát theo 2-5 giây, sau đó BUÔNG CHUỘT ra để hệ thống tính toán." FontSize="10" Foreground="#8892B0" TextWrapping="Wrap" />
                                             
                                             <!-- Nút Hold-To-Measure với sự kiện PointerPressed và PointerReleased -->
-                                            <Border Background="#00E676" CornerRadius="6" Cursor="Hand" Padding="0,10"
-                                                    PointerPressed="OnHoldRecordPointerPressed"
-                                                    PointerReleased="OnHoldRecordPointerReleased"
-                                                    PointerCaptureLost="OnHoldRecordPointerCaptureLost">
+                                            <Border x:Name="HoldMeasureBorder" Background="#00E676" CornerRadius="6" Cursor="Hand" Padding="0,10">
                                                 <TextBlock Text="{Binding LiveHoldButtonText}"
                                                            Foreground="#080C16" FontWeight="Bold" FontSize="11"
                                                            HorizontalAlignment="Center" VerticalAlignment="Center" />

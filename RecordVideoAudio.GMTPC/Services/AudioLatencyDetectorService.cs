@@ -17,6 +17,7 @@ public class AudioLatencyDetectorService : IDisposable
 
     // Live Hold-to-measure resources
     private WasapiRecorder? _holdLoopbackRecorder;
+    private WasapiPlayer? _holdSilencePlayer;
     private WasapiRecorder? _holdMicRecorder;
     private readonly List<float> _holdSpeakerSamples = new();
     private readonly List<float> _holdMicSamples = new();
@@ -34,7 +35,7 @@ public class AudioLatencyDetectorService : IDisposable
     public event Action<string>? StatusChanged;
 
     /// <summary>
-    /// Phát một xung âm bíp 20ms (1000Hz) qua loa/tai nghe và đo chính xác thời gian micro thu nhận lại xung đó bằng Matched Filter.
+    /// Phát một xung âm bíp 25ms (1000Hz) qua loa/tai nghe và đo chính xác thời gian micro thu nhận lại xung đó bằng Matched Filter.
     /// Độ chính xác đạt ±1ms.
     /// </summary>
     public async Task<int?> CalibrateWithPulseAsync(CancellationToken cancellationToken = default)
@@ -93,7 +94,10 @@ public class AudioLatencyDetectorService : IDisposable
                     if (!pulsePlayed || buffer.IsEmpty) return;
 
                     int channels = Math.Max(1, waveIn.WaveFormat.Channels);
-                    if (waveIn.WaveFormat.Encoding == WaveFormatEncoding.IeeeFloat)
+                    int bits = waveIn.WaveFormat.BitsPerSample;
+
+                    // Hỗ trợ cả Float 32-bit (Extensible), 16-bit PCM và 24-bit PCM
+                    if (bits == 32)
                     {
                         var span = MemoryMarshal.Cast<byte, float>(buffer);
                         for (int i = 0; i < span.Length && recordedCount < recordedSamples.Length; i += channels)
@@ -101,12 +105,23 @@ public class AudioLatencyDetectorService : IDisposable
                             recordedSamples[recordedCount++] = span[i];
                         }
                     }
-                    else if (waveIn.WaveFormat.BitsPerSample == 16)
+                    else if (bits == 16)
                     {
                         var span = MemoryMarshal.Cast<byte, short>(buffer);
                         for (int i = 0; i < span.Length && recordedCount < recordedSamples.Length; i += channels)
                         {
                             recordedSamples[recordedCount++] = span[i] / 32768.0f;
+                        }
+                    }
+                    else if (bits == 24)
+                    {
+                        int bytesPerFrame = channels * 3;
+                        int frames = buffer.Length / bytesPerFrame;
+                        for (int f = 0; f < frames && recordedCount < recordedSamples.Length; f++)
+                        {
+                            int offset = f * bytesPerFrame;
+                            int val = (sbyte)buffer[offset + 2] << 16 | buffer[offset + 1] << 8 | buffer[offset];
+                            recordedSamples[recordedCount++] = val / 8388608.0f;
                         }
                     }
                 };
@@ -155,7 +170,7 @@ public class AudioLatencyDetectorService : IDisposable
                     }
                 }
 
-                if (peakIndex > 0 && maxCorr > 0.02f)
+                if (peakIndex > 0 && maxCorr > 0.015f)
                 {
                     int delayMs = (int)Math.Round((double)peakIndex * 1000.0 / captureRate);
                     // Giới hạn trong khoảng trễ vật lý hợp lý (10ms - 500ms)
@@ -247,6 +262,19 @@ public class AudioLatencyDetectorService : IDisposable
                 _holdLoopbackRecorder.StartRecording();
                 _holdMicRecorder.StartRecording();
 
+                // Bật inaudible active keep-alive stream (-100 dBFS) để Windows Audio Engine pump loopback buffer liên tục
+                try
+                {
+                    var silenceFormat = _holdLoopbackRecorder.WaveFormat;
+                    var silenceProvider = new KeepAliveSilenceProvider(silenceFormat);
+                    _holdSilencePlayer = new WasapiPlayerBuilder()
+                        .WithDevice(renderDevice)
+                        .Build();
+                    _holdSilencePlayer.Init(silenceProvider);
+                    _holdSilencePlayer.Play();
+                }
+                catch { }
+
                 StatusMessage = "🔴 ĐANG THU ÂM TIẾNG HÁT & NHẠC... (HÃY GIỮ CHUỘT VÀ HÁT THEO BÀI HÁT)";
                 StatusChanged?.Invoke(StatusMessage);
                 return true;
@@ -287,9 +315,31 @@ public class AudioLatencyDetectorService : IDisposable
             StopLiveHoldCaptureInternal();
         }
 
-        if (elapsedSec < 1.0 || speakerData.Length < 24000 || micData.Length < 24000)
+        // Kiểm tra chi tiết và báo lỗi chính xác
+        if (elapsedSec < 1.0)
         {
             StatusMessage = $"Thời gian giữ chuột quá ngắn ({elapsedSec:F1}s). Vui lòng giữ chuột ít nhất 2 - 5 giây trong lúc hát theo nhạc.";
+            StatusChanged?.Invoke(StatusMessage);
+            return null;
+        }
+
+        if (speakerData.Length == 0 && micData.Length == 0)
+        {
+            StatusMessage = "Không thu được tín hiệu âm thanh nào từ Loa và Micro. Hãy kiểm tra lại thiết bị âm thanh.";
+            StatusChanged?.Invoke(StatusMessage);
+            return null;
+        }
+
+        if (speakerData.Length < 10000)
+        {
+            StatusMessage = $"Chưa thu được âm thanh bài hát từ Loa ({speakerData.Length} mẫu). Hãy đảm bảo bài hát đang được phát ra loa máy tính.";
+            StatusChanged?.Invoke(StatusMessage);
+            return null;
+        }
+
+        if (micData.Length < 10000)
+        {
+            StatusMessage = $"Chưa thu được tín hiệu từ Micro ({micData.Length} mẫu). Hãy kiểm tra lại kết nối micro hoặc hát to hơn.";
             StatusChanged?.Invoke(StatusMessage);
             return null;
         }
@@ -304,9 +354,12 @@ public class AudioLatencyDetectorService : IDisposable
     private void ExtractMonoSamples(ReadOnlySpan<byte> buffer, WaveFormat format, List<float> targetList)
     {
         int channels = Math.Max(1, format.Channels);
+        int bits = format.BitsPerSample;
+
         lock (_holdBufferLock)
         {
-            if (format.Encoding == WaveFormatEncoding.IeeeFloat)
+            // Hỗ trợ cả Float 32-bit (Extensible), 16-bit PCM và 24-bit PCM
+            if (bits == 32)
             {
                 var span = MemoryMarshal.Cast<byte, float>(buffer);
                 for (int i = 0; i < span.Length; i += channels)
@@ -314,7 +367,7 @@ public class AudioLatencyDetectorService : IDisposable
                     targetList.Add(span[i]);
                 }
             }
-            else if (format.BitsPerSample == 16)
+            else if (bits == 16)
             {
                 var span = MemoryMarshal.Cast<byte, short>(buffer);
                 for (int i = 0; i < span.Length; i += channels)
@@ -322,11 +375,26 @@ public class AudioLatencyDetectorService : IDisposable
                     targetList.Add(span[i] / 32768.0f);
                 }
             }
+            else if (bits == 24)
+            {
+                int bytesPerFrame = channels * 3;
+                int frames = buffer.Length / bytesPerFrame;
+                for (int f = 0; f < frames; f++)
+                {
+                    int offset = f * bytesPerFrame;
+                    int val = (sbyte)buffer[offset + 2] << 16 | buffer[offset + 1] << 8 | buffer[offset];
+                    targetList.Add(val / 8388608.0f);
+                }
+            }
         }
     }
 
     private void StopLiveHoldCaptureInternal()
     {
+        try { _holdSilencePlayer?.Stop(); } catch { }
+        try { _holdSilencePlayer?.Dispose(); } catch { }
+        _holdSilencePlayer = null;
+
         try { _holdLoopbackRecorder?.StopRecording(); } catch { }
         try { _holdLoopbackRecorder?.Dispose(); } catch { }
         _holdLoopbackRecorder = null;
@@ -433,8 +501,8 @@ public class AudioLatencyDetectorService : IDisposable
             }
         }
 
-        // Ngưỡng phát hiện: maxCorr >= 0.12 (đủ phát hiện ngay cả khi mic lọt nhạc nền nhỏ)
-        if (maxCorr >= 0.10f && bestDelayMs > 0)
+        // Ngưỡng phát hiện: maxCorr >= 0.08f (đủ phát hiện ngay cả khi mic lọt nhạc nền nhỏ)
+        if (maxCorr >= 0.08f && bestDelayMs > 0)
         {
             DetectedDelayMs = bestDelayMs;
             ConfidencePercent = Math.Clamp(Math.Round(maxCorr * 100.0, 1), 60.0, 99.0);
@@ -517,8 +585,64 @@ public class AudioLatencyDetectorService : IDisposable
                         MemoryMarshal.Write(buffer.Slice(byteOffset + ch * 2, 2), in sVal);
                     }
                 }
+                else if (_format.BitsPerSample == 32)
+                {
+                    for (int ch = 0; ch < channels; ch++)
+                    {
+                        MemoryMarshal.Write(buffer.Slice(byteOffset + ch * 4, 4), in sampleVal);
+                    }
+                }
             }
 
+            return buffer.Length;
+        }
+    }
+
+    /// <summary>
+    /// Keep-alive silence provider generating an inaudible dither stream (-100 dBFS) to keep the Windows Audio Engine clock running continuously.
+    /// </summary>
+    private sealed class KeepAliveSilenceProvider : IWaveProvider
+    {
+        private readonly WaveFormat _format;
+        private float _phase = 0;
+
+        public KeepAliveSilenceProvider(WaveFormat format)
+        {
+            _format = format;
+        }
+
+        public WaveFormat WaveFormat => _format;
+
+        public int Read(byte[] buffer, int offset, int count)
+        {
+            return Read(buffer.AsSpan(offset, count));
+        }
+
+        public int Read(Span<byte> buffer)
+        {
+            buffer.Clear();
+            if (_format.BitsPerSample == 32)
+            {
+                var span = MemoryMarshal.Cast<byte, float>(buffer);
+                for (int i = 0; i < span.Length; i += _format.Channels)
+                {
+                    _phase += 0.001f;
+                    float dither = MathF.Sin(_phase) * 1e-5f; // -100 dBFS
+                    span[i] = dither;
+                    if (_format.Channels > 1) span[i + 1] = dither;
+                }
+            }
+            else if (_format.BitsPerSample == 16)
+            {
+                var span = MemoryMarshal.Cast<byte, short>(buffer);
+                for (int i = 0; i < span.Length; i += _format.Channels)
+                {
+                    _phase += 0.001f;
+                    short dither = (short)(MathF.Sin(_phase) * 1);
+                    span[i] = dither;
+                    if (_format.Channels > 1) span[i + 1] = dither;
+                }
+            }
             return buffer.Length;
         }
     }
