@@ -20,9 +20,18 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow
+            desktop.ShutdownMode = Avalonia.Controls.ShutdownMode.OnMainWindowClose;
+            var vm = new MainViewModel();
+            var mainWindow = new MainWindow
             {
-                DataContext = new MainViewModel()
+                DataContext = vm
+            };
+            desktop.MainWindow = mainWindow;
+
+            desktop.Exit += (s, e) =>
+            {
+                vm.Dispose();
+                System.Environment.Exit(0);
             };
         }
         else if (ApplicationLifetime is IActivityApplicationLifetime singleViewFactoryApplicationLifetime)

@@ -1442,8 +1442,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
-        _hotKeyService.Dispose();
-        _engine.Dispose();
-        _miniBarWindow?.Close();
+        try { _liveHoldTimer?.Stop(); } catch { }
+        try { _hotKeyService.Dispose(); } catch { }
+        try { _engine.Dispose(); } catch { }
+        try { _latencyDetector.Dispose(); } catch { }
+        try { _vocalStudioWindow?.Close(); } catch { }
+        try { _miniBarWindow?.Close(); } catch { }
     }
 }

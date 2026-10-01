@@ -522,9 +522,20 @@ public class RecordingEngine : IRecordingEngine
 
     public void Dispose()
     {
-        _levelTimer.Stop();
-        _levelTimer.Dispose();
-        _audioMonitor.Dispose();
-        _audioRecorder.Dispose();
+        try { _levelTimer.Stop(); } catch { }
+        try { _levelTimer.Dispose(); } catch { }
+        try { _audioMonitor.Dispose(); } catch { }
+        try { _audioRecorder.Dispose(); } catch { }
+
+        if (_ffmpegProcess != null && !_ffmpegProcess.HasExited)
+        {
+            try
+            {
+                _ffmpegProcess.Kill();
+                _ffmpegProcess.Dispose();
+            }
+            catch { }
+            _ffmpegProcess = null;
+        }
     }
 }
