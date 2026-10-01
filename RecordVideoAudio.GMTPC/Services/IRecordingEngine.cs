@@ -22,6 +22,8 @@ public interface IRecordingEngine : IDisposable
     event Action<double, double>? AudioLevelsUpdated; // speakerLevel, micLevel (0-100)
     event Action? AutoStopped;
 
+    WasapiAudioRecorder AudioRecorder { get; }
+
     Task<bool> StartRecordingAsync(RecordingConfig config);
     Task<bool> PauseRecordingAsync();
     Task<bool> ResumeRecordingAsync();
@@ -36,7 +38,9 @@ public interface IRecordingEngine : IDisposable
         bool micCompressor = true, double micCompressorThresholdDb = -18.0, double micCompressorRatio = 4.0,
         VocalProfile micVocalProfile = VocalProfile.BroadcastWarmth, bool micDeEsser = true,
         bool micAutoTune = false, MusicalKey micAutoTuneKey = MusicalKey.C, AutoTuneScale micAutoTuneScale = AutoTuneScale.Chromatic,
-        int micAutoTuneSpeed = 20, int micPitchShiftSemitones = 0);
+        int micAutoTuneSpeed = 20, int micPitchShiftSemitones = 0,
+        bool micEcho = false, int micEchoDelayMs = 220, double micEchoFeedback = 35.0, double micEchoWetMix = 30.0,
+        bool micReverb = false, double micReverbRoomSize = 50.0, double micReverbDamping = 40.0, double micReverbWetMix = 25.0);
 }
 
 public class RecordingEngine : IRecordingEngine
@@ -95,6 +99,17 @@ public class RecordingEngine : IRecordingEngine
         _levelTimer.Start();
     }
 
+    public WasapiAudioRecorder AudioRecorder => _audioRecorder;
+
+    private bool _monitorMicEcho = false;
+    private int _monitorMicEchoDelayMs = 220;
+    private double _monitorMicEchoFeedback = 35.0;
+    private double _monitorMicEchoWetMix = 30.0;
+    private bool _monitorMicReverb = false;
+    private double _monitorMicReverbRoomSize = 50.0;
+    private double _monitorMicReverbDamping = 40.0;
+    private double _monitorMicReverbWetMix = 25.0;
+
     public void UpdateAudioMonitoringSettings(
         bool speakerEnabled, double speakerVolume,
         bool micEnabled, double micVolume,
@@ -105,7 +120,9 @@ public class RecordingEngine : IRecordingEngine
         bool micCompressor = true, double micCompressorThresholdDb = -18.0, double micCompressorRatio = 4.0,
         VocalProfile micVocalProfile = VocalProfile.BroadcastWarmth, bool micDeEsser = true,
         bool micAutoTune = false, MusicalKey micAutoTuneKey = MusicalKey.C, AutoTuneScale micAutoTuneScale = AutoTuneScale.Chromatic,
-        int micAutoTuneSpeed = 20, int micPitchShiftSemitones = 0)
+        int micAutoTuneSpeed = 20, int micPitchShiftSemitones = 0,
+        bool micEcho = false, int micEchoDelayMs = 220, double micEchoFeedback = 35.0, double micEchoWetMix = 30.0,
+        bool micReverb = false, double micReverbRoomSize = 50.0, double micReverbDamping = 40.0, double micReverbWetMix = 25.0)
     {
         _monitorSpeaker = speakerEnabled;
         _monitorSpeakerVolume = speakerVolume;
@@ -127,6 +144,14 @@ public class RecordingEngine : IRecordingEngine
         _monitorMicAutoTuneScale = micAutoTuneScale;
         _monitorMicAutoTuneSpeed = micAutoTuneSpeed;
         _monitorMicPitchShiftSemitones = micPitchShiftSemitones;
+        _monitorMicEcho = micEcho;
+        _monitorMicEchoDelayMs = micEchoDelayMs;
+        _monitorMicEchoFeedback = micEchoFeedback;
+        _monitorMicEchoWetMix = micEchoWetMix;
+        _monitorMicReverb = micReverb;
+        _monitorMicReverbRoomSize = micReverbRoomSize;
+        _monitorMicReverbDamping = micReverbDamping;
+        _monitorMicReverbWetMix = micReverbWetMix;
 
         // Forward immediately to WasapiAudioRecorder for dynamic real-time DSP during active recording
         _audioRecorder.UpdateRealtimeSettings(
@@ -137,7 +162,9 @@ public class RecordingEngine : IRecordingEngine
             micCompressor, micCompressorThresholdDb, micCompressorRatio,
             micVocalProfile, micDeEsser,
             micAutoTune, micAutoTuneKey, micAutoTuneScale,
-            micAutoTuneSpeed, micPitchShiftSemitones
+            micAutoTuneSpeed, micPitchShiftSemitones,
+            micEcho, micEchoDelayMs, micEchoFeedback, micEchoWetMix,
+            micReverb, micReverbRoomSize, micReverbDamping, micReverbWetMix
         );
 
         if (ActiveConfig != null)
@@ -162,6 +189,14 @@ public class RecordingEngine : IRecordingEngine
             ActiveConfig.MicAutoTuneScale = micAutoTuneScale;
             ActiveConfig.MicAutoTuneSpeed = micAutoTuneSpeed;
             ActiveConfig.MicPitchShiftSemitones = micPitchShiftSemitones;
+            ActiveConfig.MicEcho = micEcho;
+            ActiveConfig.MicEchoDelayMs = micEchoDelayMs;
+            ActiveConfig.MicEchoFeedback = micEchoFeedback;
+            ActiveConfig.MicEchoWetMix = micEchoWetMix;
+            ActiveConfig.MicReverb = micReverb;
+            ActiveConfig.MicReverbRoomSize = micReverbRoomSize;
+            ActiveConfig.MicReverbDamping = micReverbDamping;
+            ActiveConfig.MicReverbWetMix = micReverbWetMix;
         }
     }
 
@@ -222,7 +257,15 @@ public class RecordingEngine : IRecordingEngine
                 config.MicAutoTuneScale,
                 config.MicAutoTuneSpeed,
                 config.MicPitchShiftSemitones,
-                outDir
+                outDir,
+                config.MicEcho,
+                config.MicEchoDelayMs,
+                config.MicEchoFeedback,
+                config.MicEchoWetMix,
+                config.MicReverb,
+                config.MicReverbRoomSize,
+                config.MicReverbDamping,
+                config.MicReverbWetMix
             );
             if (!string.IsNullOrEmpty(audioErr))
             {

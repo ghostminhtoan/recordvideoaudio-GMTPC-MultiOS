@@ -398,106 +398,30 @@
                                         </StackPanel>
                                     </Grid>
 
-                                    <!-- AI RNNoise & Studio Filter Deck for Microphone -->
-                                    <Border Background="#131B2E" CornerRadius="6" Padding="8,6" BorderBrush="#1F2D4A" BorderThickness="1" Margin="0,2,0,0">
-                                        <StackPanel Spacing="6">
-                                            <Grid ColumnDefinitions="*,Auto">
-                                                <TextBlock Text="🛡️ BỘ LỌC TẠP ÂM AI &amp; NOISE GATE (CHUẨN OBS STUDIO)" FontSize="10" FontWeight="Bold" Foreground="#00F0FF" VerticalAlignment="Center" />
-                                                <Button Grid.Column="1" Content="Đặt lại" Command="{Binding ResetMicDspCommand}"
-                                                        Background="#1E293B" Foreground="#8892B0" FontSize="9" Padding="6,2" CornerRadius="3" />
-                                            </Grid>
-
-                                            <!-- AI Noise Suppression & High-Pass Filter -->
-                                            <Grid ColumnDefinitions="*,*">
-                                                <CheckBox Grid.Column="0" Content="Giảm ồn AI (RNNoise)" IsChecked="{Binding MicNoiseSuppression}"
-                                                          FontSize="10" Foreground="#00E676" FontWeight="SemiBold"
-                                                          ToolTip.Tip="Xóa sạch 100% tiếng quạt gió, bàn phím, tiếng ve kêu, tiếng sôi xì của mic trước khi tăng Gain." />
-                                                <CheckBox Grid.Column="1" Content="Lọc ù trầm 80Hz" IsChecked="{Binding MicHighPassFilter}"
-                                                          FontSize="10" Foreground="#CBD5E1"
-                                                          ToolTip.Tip="Cắt bỏ toàn bộ tần số siêu trầm dưới 80Hz do rung bàn hoặc luồng gió phả vào mic." />
-                                            </Grid>
-
-                                            <!-- Noise Gate (Cổng ngắt tiếng ồn) -->
-                                            <Grid ColumnDefinitions="Auto,*,Auto">
-                                                <CheckBox Grid.Column="0" Content="Cổng ngắt ồn (Gate):" IsChecked="{Binding MicNoiseGate}"
-                                                          FontSize="10" Foreground="#CBD5E1" Margin="0,0,6,0"
-                                                          ToolTip.Tip="Tự động tắt tiếng mic khi ngừng nói và chỉ mở khi có giọng nói." />
-                                                <Slider Grid.Column="1" Minimum="-60" Maximum="-20" Value="{Binding MicNoiseGateThresholdDb}"
-                                                        IsEnabled="{Binding MicNoiseGate}" Height="20" Margin="4,0" />
-                                                <TextBlock Grid.Column="2" Text="{Binding MicGateThresholdDisplay}"
-                                                           FontSize="10" FontWeight="Bold" Foreground="#FFB800" VerticalAlignment="Center" />
-                                            </Grid>
-                                        </StackPanel>
-                                    </Border>
-
-                                    <!-- Studio Vocal Polish Deck (Compressor + 3-Band Vocal EQ + De-Esser) -->
-                                    <Border Background="#131B2E" CornerRadius="6" Padding="8,6" BorderBrush="#1F2D4A" BorderThickness="1" Margin="0,2,0,0">
-                                        <StackPanel Spacing="6">
-                                            <Grid ColumnDefinitions="*,Auto">
-                                                <TextBlock Text="🎙️ LÀM ĐẸP GIỌNG &amp; CHỐNG RÈ (COMPRESSOR &amp; STUDIO EQ)" FontSize="10" FontWeight="Bold" Foreground="#00F0FF" VerticalAlignment="Center" />
-                                                <TextBlock Grid.Column="1" Text="CHUẨN BROADCAST" FontSize="9" Foreground="#64B5F6" FontWeight="SemiBold" />
-                                            </Grid>
-
-                                            <!-- Dynamic Compressor (Chống vỡ rè khi nói to / hét) -->
-                                            <Grid ColumnDefinitions="Auto,*,Auto">
-                                                <CheckBox Grid.Column="0" Content="Chống rè (Compressor):" IsChecked="{Binding MicCompressor}"
-                                                          FontSize="10" Foreground="#00E676" FontWeight="SemiBold" Margin="0,0,6,0"
-                                                          ToolTip.Tip="Tự động ghìm âm lượng khi nói to hoặc hét, triệt tiêu 100% hiện tượng vỡ rè tiếng." />
-                                                <Slider Grid.Column="1" Minimum="-36" Maximum="-6" Value="{Binding MicCompressorThresholdDb}"
-                                                        IsEnabled="{Binding MicCompressor}" Height="20" Margin="4,0" />
-                                                <TextBlock Grid.Column="2" Text="{Binding MicCompressorThresholdDisplay}"
-                                                           FontSize="10" FontWeight="Bold" Foreground="#FFB800" VerticalAlignment="Center" />
-                                            </Grid>
-
-                                            <!-- Vocal EQ Preset & De-Esser -->
-                                            <Grid ColumnDefinitions="*,Auto">
-                                                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                                                    <TextBlock Text="Âm sắc giọng (EQ):" FontSize="10" Foreground="#A0AEC0" VerticalAlignment="Center" />
-                                                    <ComboBox ItemsSource="{Binding VocalProfileList}" SelectedItem="{Binding SelectedVocalProfile}"
-                                                              Height="24" FontSize="10" Padding="6,2" MinWidth="130" />
+                                    <!-- Studio Vocal & Karaoke FX Studio Button (Gom toàn bộ hiệu ứng vào 1 nút) -->
+                                    <Border Background="#131B2E" CornerRadius="8" Padding="10,8" BorderBrush="#00F0FF" BorderThickness="1.5" Margin="0,4,0,0">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <StackPanel Spacing="3" VerticalAlignment="Center">
+                                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                    <TextBlock Text="🎛️ VOCAL STUDIO &amp; KARAOKE FX" FontSize="11" FontWeight="Bold" Foreground="#00F0FF" />
+                                                    <Border Background="#1E293B" CornerRadius="4" Padding="6,2" BorderBrush="#FFB800" BorderThickness="1"
+                                                            IsVisible="{Binding HasActiveVocalFx}">
+                                                        <TextBlock Text="{Binding VocalFxBadgeText}" FontSize="9" FontWeight="Bold" Foreground="#FFB800" />
+                                                    </Border>
                                                 </StackPanel>
+                                                <TextBlock Text="{Binding VocalFxStatusSummary}" FontSize="9" Foreground="#8892B0" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
 
-                                                <CheckBox Grid.Column="1" Content="Khử rít chói (De-Esser)" IsChecked="{Binding MicDeEsser}"
-                                                          FontSize="10" Foreground="#CBD5E1" Margin="6,0,0,0"
-                                                          ToolTip.Tip="Cắt êm dịu các âm xì chói tai 's', 'x', 'ch' khi phát âm sát mic." />
-                                            </Grid>
-                                        </StackPanel>
-                                    </Border>
-
-                                    <!-- Auto-Tune & Voice FX Deck (Pitch Correction & Voice Changer) -->
-                                    <Border Background="#131B2E" CornerRadius="6" Padding="8,6" BorderBrush="#1F2D4A" BorderThickness="1" Margin="0,2,0,0">
-                                        <StackPanel Spacing="6">
-                                            <Grid ColumnDefinitions="Auto,*,Auto">
-                                                <CheckBox Grid.Column="0" Content="🎛️ BẬT AUTO-TUNE (PITCH CORRECTION)" IsChecked="{Binding MicAutoTune}"
-                                                          FontSize="10" FontWeight="Bold" Foreground="#FF007F"
-                                                          ToolTip.Tip="Tự động nắn cao độ giọng nói theo thang âm chuẩn, tạo hiệu ứng ca sĩ hoặc Robot." />
-                                                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
-                                                    <TextBlock Text="Tone:" FontSize="10" Foreground="#A0AEC0" VerticalAlignment="Center" />
-                                                    <ComboBox ItemsSource="{Binding MusicalKeyList}" SelectedItem="{Binding SelectedAutoTuneKey}"
-                                                              IsEnabled="{Binding MicAutoTune}" Height="22" FontSize="9" Padding="4,1" MinWidth="48" />
-                                                    <ComboBox ItemsSource="{Binding AutoTuneScaleList}" SelectedItem="{Binding SelectedAutoTuneScale}"
-                                                              IsEnabled="{Binding MicAutoTune}" Height="22" FontSize="9" Padding="4,1" MinWidth="80" />
+                                            <Button Grid.Column="1" Command="{Binding OpenVocalStudioCommand}"
+                                                    Background="#00F0FF" Foreground="#0B0F19" FontWeight="Bold" FontSize="11"
+                                                    Padding="12,6" CornerRadius="6" VerticalAlignment="Center"
+                                                    ToolTip.Tip="Mở bàn điều khiển Vocal Studio FX: Echo, Reverb, Auto-Tune, Pitch Shifter, Lọc ồn AI &amp; Đo độ trễ">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <TextBlock Text="MỞ STUDIO FX" FontWeight="Bold" />
+                                                    <TextBlock Text="⚙️" />
                                                 </StackPanel>
-                                            </Grid>
-
-                                            <!-- Auto-Tune Speed (Robot Travis Scott <-> Natural) -->
-                                            <Grid ColumnDefinitions="Auto,*,Auto" IsVisible="{Binding MicAutoTune}">
-                                                <TextBlock Grid.Column="0" Text="Tốc độ nắn nốt:" FontSize="9" Foreground="#A0AEC0" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                                <Slider Grid.Column="1" Minimum="0" Maximum="100" Value="{Binding MicAutoTuneSpeed}" Height="18" Margin="4,0" />
-                                                <TextBlock Grid.Column="2" Text="{Binding MicAutoTuneSpeedDisplay}" FontSize="9" FontWeight="Bold" Foreground="#00F0FF" VerticalAlignment="Center" />
-                                            </Grid>
-
-                                            <!-- Voice Changer (Pitch Shift Semitones: Monster <-> Real <-> Chipmunk) -->
-                                            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
-                                                <TextBlock Grid.Column="0" Text="🎭 Đổi giọng (Pitch):" FontSize="10" Foreground="#A0AEC0" VerticalAlignment="Center" Margin="0,0,4,0" />
-                                                <Slider Grid.Column="1" Minimum="-12" Maximum="12" Value="{Binding MicPitchShiftSemitones}"
-                                                        TickFrequency="1" IsSnapToTickEnabled="True" Height="20" Margin="4,0" />
-                                                <TextBlock Grid.Column="2" Text="{Binding MicPitchShiftDisplay}" FontSize="9" FontWeight="Bold" Foreground="#FFB800" VerticalAlignment="Center" Margin="4,0" />
-                                                <Button Grid.Column="3" Content="Giọng thật" Command="{Binding ResetPitchShiftCommand}"
-                                                        Background="#1E293B" Foreground="#64B5F6" FontSize="9" Padding="4,2" CornerRadius="3"
-                                                        ToolTip.Tip="Đặt lại cao độ về 0 (Giọng nói nguyên bản)" />
-                                            </Grid>
-                                        </StackPanel>
+                                            </Button>
+                                        </Grid>
                                     </Border>
 
                                     <!-- OBS Track Matrix for Microphone -->

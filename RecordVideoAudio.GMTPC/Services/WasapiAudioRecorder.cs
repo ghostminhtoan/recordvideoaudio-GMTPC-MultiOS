@@ -115,7 +115,45 @@ public class WasapiAudioRecorder : IDisposable
     private int _pitchTrackCount = 0;
     private float _smoothedAutoTuneShift = 0.0f;
 
+    // Stereo Echo / Karaoke Delay State
+    private volatile bool _micEcho = false;
+    private volatile int _micEchoDelayMs = 220;
+    private volatile float _micEchoFeedback = 0.35f;
+    private volatile float _micEchoWetMix = 0.30f;
+    private readonly float[] _echoBufferCh0 = new float[96000];
+    private readonly float[] _echoBufferCh1 = new float[96000];
+    private int _echoWritePos = 0;
+
+    // Plate & Hall Reverb State (Schroeder-Moorer)
+    private volatile bool _micReverb = false;
+    private volatile float _micReverbRoomSize = 0.50f;
+    private volatile float _micReverbDamping = 0.40f;
+    private volatile float _micReverbWetMix = 0.25f;
+
+    private readonly float[][] _combBuffers = [new float[1116], new float[1188], new float[1277], new float[1356]];
+    private readonly int[] _combIndices = new int[4];
+    private readonly float[] _combFilterStores = new float[4];
+    private readonly float[][] _allpassBuffers = [new float[225], new float[341]];
+    private readonly int[] _allpassIndices = new int[2];
+
+    // Real-time audio snapshot buffers for Latency Detector
+    private readonly float[] _latestSpeakerAudio = new float[48000];
+    private readonly float[] _latestMicAudio = new float[48000];
+    private int _speakerAudioWritePos = 0;
+    private int _micAudioWritePos = 0;
+
     public bool IsRecording { get; private set; }
+
+    public void GetLatestAudioSnapshot(out float[] speaker, out float[] mic)
+    {
+        speaker = new float[48000];
+        mic = new float[48000];
+        lock (_combIndices)
+        {
+            Array.Copy(_latestSpeakerAudio, speaker, 48000);
+            Array.Copy(_latestMicAudio, mic, 48000);
+        }
+    }
 
     public void UpdateRealtimeSettings(
         bool recordSpeaker, double speakerVolume, double speakerGainDb,
@@ -125,7 +163,9 @@ public class WasapiAudioRecorder : IDisposable
         bool micCompressor, double micCompressorThresholdDb, double micCompressorRatio,
         VocalProfile micVocalProfile, bool micDeEsser,
         bool micAutoTune, MusicalKey micAutoTuneKey, AutoTuneScale micAutoTuneScale,
-        int micAutoTuneSpeed, int micPitchShiftSemitones)
+        int micAutoTuneSpeed, int micPitchShiftSemitones,
+        bool micEcho = false, int micEchoDelayMs = 220, double micEchoFeedback = 35.0, double micEchoWetMix = 30.0,
+        bool micReverb = false, double micReverbRoomSize = 50.0, double micReverbDamping = 40.0, double micReverbWetMix = 25.0)
     {
         _recordSpeaker = recordSpeaker;
         _speakerVolume = (float)Math.Clamp(speakerVolume / 100.0, 0.0, 1.0);
@@ -150,6 +190,16 @@ public class WasapiAudioRecorder : IDisposable
         _micAutoTuneScale = micAutoTuneScale;
         _micAutoTuneSpeed = Math.Clamp(micAutoTuneSpeed, 0, 100);
         _micPitchShiftSemitones = Math.Clamp(micPitchShiftSemitones, -12, 12);
+
+        _micEcho = micEcho;
+        _micEchoDelayMs = Math.Clamp(micEchoDelayMs, 50, 600);
+        _micEchoFeedback = (float)Math.Clamp(micEchoFeedback / 100.0, 0.0, 0.85);
+        _micEchoWetMix = (float)Math.Clamp(micEchoWetMix / 100.0, 0.0, 1.0);
+
+        _micReverb = micReverb;
+        _micReverbRoomSize = (float)Math.Clamp(micReverbRoomSize / 100.0, 0.1, 0.95);
+        _micReverbDamping = (float)Math.Clamp(micReverbDamping / 100.0, 0.0, 0.95);
+        _micReverbWetMix = (float)Math.Clamp(micReverbWetMix / 100.0, 0.0, 1.0);
     }
 
     public void UpdateRealtimeSettings(
@@ -166,7 +216,9 @@ public class WasapiAudioRecorder : IDisposable
             _micCompressor, _micCompressorThresholdDb, _micCompressorRatio,
             _micVocalProfile, _micDeEsser,
             _micAutoTune, _micAutoTuneKey, _micAutoTuneScale,
-            _micAutoTuneSpeed, _micPitchShiftSemitones
+            _micAutoTuneSpeed, _micPitchShiftSemitones,
+            _micEcho, _micEchoDelayMs, _micEchoFeedback * 100.0, _micEchoWetMix * 100.0,
+            _micReverb, _micReverbRoomSize * 100.0, _micReverbDamping * 100.0, _micReverbWetMix * 100.0
         );
     }
 
@@ -211,7 +263,9 @@ public class WasapiAudioRecorder : IDisposable
         VocalProfile micVocalProfile, bool micDeEsser,
         bool micAutoTune, MusicalKey micAutoTuneKey, AutoTuneScale micAutoTuneScale,
         int micAutoTuneSpeed, int micPitchShiftSemitones,
-        string outDir)
+        string outDir,
+        bool micEcho = false, int micEchoDelayMs = 220, double micEchoFeedback = 35.0, double micEchoWetMix = 30.0,
+        bool micReverb = false, double micReverbRoomSize = 50.0, double micReverbDamping = 40.0, double micReverbWetMix = 25.0)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             return null;
@@ -226,7 +280,9 @@ public class WasapiAudioRecorder : IDisposable
             micCompressor, micCompressorThresholdDb, micCompressorRatio,
             micVocalProfile, micDeEsser,
             micAutoTune, micAutoTuneKey, micAutoTuneScale,
-            micAutoTuneSpeed, micPitchShiftSemitones
+            micAutoTuneSpeed, micPitchShiftSemitones,
+            micEcho, micEchoDelayMs, micEchoFeedback, micEchoWetMix,
+            micReverb, micReverbRoomSize, micReverbDamping, micReverbWetMix
         );
 
         ResetDspFilters();
@@ -416,6 +472,12 @@ public class WasapiAudioRecorder : IDisposable
                     val = MathF.Tanh(val * 0.95f);
                 }
                 samples[i] = val;
+
+                if (i % 2 == 0)
+                {
+                    _latestSpeakerAudio[_speakerAudioWritePos] = val;
+                    _speakerAudioWritePos = (_speakerAudioWritePos + 1) % 48000;
+                }
             }
         }
         else if (bitsPerSample == 16)
@@ -429,6 +491,12 @@ public class WasapiAudioRecorder : IDisposable
                     val = MathF.Tanh(val * 0.95f);
                 }
                 samples[i] = (short)Math.Clamp((int)MathF.Round(val * 32767.0f), -32768, 32767);
+
+                if (i % 2 == 0)
+                {
+                    _latestSpeakerAudio[_speakerAudioWritePos] = val;
+                    _speakerAudioWritePos = (_speakerAudioWritePos + 1) % 48000;
+                }
             }
         }
     }
@@ -824,6 +892,59 @@ public class WasapiAudioRecorder : IDisposable
             _smoothedPitchRatio = 1.0f;
         }
 
+        // 7.1. Stereo Echo (Karaoke Delay)
+        if (_micEcho)
+        {
+            int delaySamples = Math.Clamp((int)(_micEchoDelayMs * sampleRate / 1000.0f), 10, 95990);
+            int readIdx = (_echoWritePos - delaySamples + 96000) % 96000;
+            float[] echoBuf = (ch % 2 == 0) ? _echoBufferCh0 : _echoBufferCh1;
+            float echoSample = echoBuf[readIdx];
+            echoBuf[_echoWritePos] = val + echoSample * _micEchoFeedback * 0.85f;
+            val = val * (1.0f - _micEchoWetMix * 0.4f) + echoSample * _micEchoWetMix;
+
+            if (ch == channels - 1 || channels <= 1)
+            {
+                _echoWritePos = (_echoWritePos + 1) % 96000;
+            }
+        }
+
+        // 7.2. Plate & Hall Reverb (Schroeder-Moorer)
+        if (_micReverb)
+        {
+            float reverbOut = 0.0f;
+            float feedback = Math.Clamp(0.7f + _micReverbRoomSize * 0.28f, 0.5f, 0.98f);
+            float damping = Math.Clamp(_micReverbDamping, 0.0f, 0.9f);
+
+            // 4 Comb Filters in parallel
+            for (int k = 0; k < 4; k++)
+            {
+                var buf = _combBuffers[k];
+                int idx = _combIndices[k];
+                float output = buf[idx];
+                _combFilterStores[k] = (output * (1.0f - damping)) + (_combFilterStores[k] * damping);
+                buf[idx] = val + (_combFilterStores[k] * feedback);
+                _combIndices[k] = (idx + 1) % buf.Length;
+                reverbOut += output;
+            }
+
+            reverbOut *= 0.25f;
+
+            // 2 All-Pass Filters in series
+            for (int k = 0; k < 2; k++)
+            {
+                var buf = _allpassBuffers[k];
+                int idx = _allpassIndices[k];
+                float bufOut = buf[idx];
+                float apFeedback = 0.5f;
+                float apIn = reverbOut;
+                reverbOut = -apIn + bufOut;
+                buf[idx] = apIn + (bufOut * apFeedback);
+                _allpassIndices[k] = (idx + 1) % buf.Length;
+            }
+
+            val = val * (1.0f - _micReverbWetMix * 0.4f) + reverbOut * _micReverbWetMix;
+        }
+
         // 8. Gain (-50 dB to +50 dB) and Volume
         float micGainLinear = MathF.Pow(10.0f, _micGainDb / 20.0f);
         val *= (_micVolume * micGainLinear);
@@ -855,6 +976,12 @@ public class WasapiAudioRecorder : IDisposable
             {
                 int ch = channels > 1 ? (i % channels) : 0;
                 samples[i] = ProcessMicSample(samples[i], ch, channels, sampleRate);
+
+                if (ch == 0)
+                {
+                    _latestMicAudio[_micAudioWritePos] = samples[i];
+                    _micAudioWritePos = (_micAudioWritePos + 1) % 48000;
+                }
             }
         }
         else if (bitsPerSample == 16)
@@ -866,6 +993,12 @@ public class WasapiAudioRecorder : IDisposable
                 float inVal = samples[i] / 32768.0f;
                 float outVal = ProcessMicSample(inVal, ch, channels, sampleRate);
                 samples[i] = (short)Math.Clamp((int)MathF.Round(outVal * 32767.0f), -32768, 32767);
+
+                if (ch == 0)
+                {
+                    _latestMicAudio[_micAudioWritePos] = outVal;
+                    _micAudioWritePos = (_micAudioWritePos + 1) % 48000;
+                }
             }
         }
     }

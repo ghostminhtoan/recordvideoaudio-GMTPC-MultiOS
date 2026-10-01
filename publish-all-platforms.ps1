@@ -3,6 +3,10 @@ $ErrorActionPreference = "Stop"
 $rootDir = $PSScriptRoot
 $distDir = Join-Path $rootDir "dist"
 
+# Đóng tiến trình cũ nếu đang mở để tránh bị lock file
+Stop-Process -Name "RecordVideoAudio.GMTPC*" -Force -ErrorAction SilentlyContinue
+Start-Sleep -Milliseconds 500
+
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host "   PACKAGING MULTIOS APPS - RECORD VIDEO AUDIO GMTPC      " -ForegroundColor Yellow
 Write-Host "   (Self-Contained Single-File Executable Packaging)      " -ForegroundColor Yellow

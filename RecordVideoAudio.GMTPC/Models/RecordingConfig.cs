@@ -66,6 +66,17 @@ public class RecordingConfig
     public int MicAutoTuneSpeed { get; set; } = 20; // 0ms (Hard Robot) - 100ms (Natural)
     public int MicPitchShiftSemitones { get; set; } = 0; // -12 to +12 semitones
 
+    // Karaoke & Spatial Effects (Stereo Echo & Reverb)
+    public bool MicEcho { get; set; } = false;
+    public int MicEchoDelayMs { get; set; } = 220; // 50ms - 600ms
+    public double MicEchoFeedback { get; set; } = 35.0; // 0% - 80%
+    public double MicEchoWetMix { get; set; } = 30.0; // 0% - 100%
+
+    public bool MicReverb { get; set; } = false;
+    public double MicReverbRoomSize { get; set; } = 50.0; // 10% - 95%
+    public double MicReverbDamping { get; set; } = 40.0; // 0% - 100%
+    public double MicReverbWetMix { get; set; } = 25.0; // 0% - 100%
+
     // OBS-Style Multi-Track Audio Matrix
     // Speaker Routing to Track 1, 2, 3
     public bool SpeakerTrack1 { get; set; } = true;

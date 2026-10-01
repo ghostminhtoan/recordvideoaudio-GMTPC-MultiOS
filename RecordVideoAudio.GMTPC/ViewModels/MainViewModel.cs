@@ -344,6 +344,90 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public string MicAutoTuneSpeedDisplay => MicAutoTuneSpeed <= 8 ? "0ms (Hard Robot)" : $"{MicAutoTuneSpeed} ms";
     public string MicPitchShiftDisplay => $"{(MicPitchShiftSemitones > 0 ? "+" : "")}{MicPitchShiftSemitones} {(MicPitchShiftSemitones switch { < -8 => "(Quỷ / Monster)", < -2 => "(Nam trầm)", 0 => "(Giọng thật)", < 8 => "(Nữ)", _ => "(Chipmunk)" })}";
 
+    // Karaoke & Spatial Effects (Stereo Echo & Reverb)
+    [ObservableProperty]
+    private bool micEcho = false;
+
+    [ObservableProperty]
+    private int micEchoDelayMs = 220; // 50ms - 600ms
+
+    [ObservableProperty]
+    private double micEchoFeedback = 35.0; // 0% - 80%
+
+    [ObservableProperty]
+    private double micEchoWetMix = 30.0; // 0% - 100%
+
+    [ObservableProperty]
+    private bool micReverb = false;
+
+    [ObservableProperty]
+    private double micReverbRoomSize = 50.0; // 10% - 95%
+
+    [ObservableProperty]
+    private double micReverbDamping = 40.0; // 0% - 100%
+
+    [ObservableProperty]
+    private double micReverbWetMix = 25.0; // 0% - 100%
+
+    public string MicEchoDelayDisplay => $"{MicEchoDelayMs} ms";
+    public string MicEchoFeedbackDisplay => $"{MicEchoFeedback:F0}%";
+    public string MicEchoWetMixDisplay => $"{MicEchoWetMix:F0}%";
+    public string MicReverbRoomSizeDisplay => $"{MicReverbRoomSize:F0}%";
+    public string MicReverbDampingDisplay => $"{MicReverbDamping:F0}%";
+    public string MicReverbWetMixDisplay => $"{MicReverbWetMix:F0}%";
+
+    // Auto Latency Detector State
+    private readonly AudioLatencyDetectorService _latencyDetector = new();
+
+    [ObservableProperty]
+    private bool isDetectingLatency = false;
+
+    [ObservableProperty]
+    private string latencyStatusMessage = "Sẵn sàng phân tích độ lệch bài hát & micro.";
+
+    [ObservableProperty]
+    private int detectedLatencyMs = 0;
+
+    [ObservableProperty]
+    private double latencyConfidence = 0.0;
+
+    [ObservableProperty]
+    private bool hasDetectedLatency = false;
+
+    public bool HasActiveVocalFx => MicEcho || MicReverb || MicAutoTune || (MicPitchShiftSemitones != 0) || MicCompressor || MicNoiseSuppression || MicNoiseGate || MicDeEsser;
+
+    public string VocalFxBadgeText
+    {
+        get
+        {
+            int count = 0;
+            if (MicEcho) count++;
+            if (MicReverb) count++;
+            if (MicAutoTune) count++;
+            if (MicPitchShiftSemitones != 0) count++;
+            if (MicCompressor) count++;
+            if (MicNoiseSuppression) count++;
+            if (MicNoiseGate) count++;
+            if (MicDeEsser) count++;
+            return count > 0 ? $"ĐANG BẬT {count} HIỆU ỨNG" : "CHƯA BẬT HIỆU ỨNG";
+        }
+    }
+
+    public string VocalFxStatusSummary
+    {
+        get
+        {
+            var active = new System.Collections.Generic.List<string>();
+            if (MicEcho) active.Add("Echo");
+            if (MicReverb) active.Add("Reverb");
+            if (MicAutoTune) active.Add($"AutoTune[{SelectedAutoTuneKey}]");
+            if (MicPitchShiftSemitones != 0) active.Add($"Pitch[{(MicPitchShiftSemitones > 0 ? "+" : "")}{MicPitchShiftSemitones}]");
+            if (MicCompressor) active.Add("Compressor");
+            if (MicNoiseSuppression) active.Add("Denoise");
+            return active.Count > 0 ? string.Join(" • ", active) : "Giọng mộc (Dry natural)";
+        }
+    }
+
     public ObservableCollection<VocalProfile> VocalProfileList { get; }
     public ObservableCollection<AutoTuneScale> AutoTuneScaleList { get; }
     public ObservableCollection<MusicalKey> MusicalKeyList { get; }
@@ -603,10 +687,22 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         UpdateAudioMonitoring();
     }
     partial void OnSelectedVocalProfileChanged(VocalProfile value) => UpdateAudioMonitoring();
-    partial void OnMicDeEsserChanged(bool value) => UpdateAudioMonitoring();
+    partial void OnMicDeEsserChanged(bool value)
+    {
+        NotifyVocalFxChanged();
+        UpdateAudioMonitoring();
+    }
 
-    partial void OnMicAutoTuneChanged(bool value) => UpdateAudioMonitoring();
-    partial void OnSelectedAutoTuneKeyChanged(MusicalKey value) => UpdateAudioMonitoring();
+    partial void OnMicAutoTuneChanged(bool value)
+    {
+        NotifyVocalFxChanged();
+        UpdateAudioMonitoring();
+    }
+    partial void OnSelectedAutoTuneKeyChanged(MusicalKey value)
+    {
+        NotifyVocalFxChanged();
+        UpdateAudioMonitoring();
+    }
     partial void OnSelectedAutoTuneScaleChanged(AutoTuneScale value) => UpdateAudioMonitoring();
     partial void OnMicAutoTuneSpeedChanged(int value)
     {
@@ -616,13 +712,163 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     partial void OnMicPitchShiftSemitonesChanged(int value)
     {
         OnPropertyChanged(nameof(MicPitchShiftDisplay));
+        NotifyVocalFxChanged();
         UpdateAudioMonitoring();
+    }
+
+    partial void OnMicEchoChanged(bool value)
+    {
+        NotifyVocalFxChanged();
+        UpdateAudioMonitoring();
+    }
+    partial void OnMicEchoDelayMsChanged(int value)
+    {
+        OnPropertyChanged(nameof(MicEchoDelayDisplay));
+        UpdateAudioMonitoring();
+    }
+    partial void OnMicEchoFeedbackChanged(double value)
+    {
+        OnPropertyChanged(nameof(MicEchoFeedbackDisplay));
+        UpdateAudioMonitoring();
+    }
+    partial void OnMicEchoWetMixChanged(double value)
+    {
+        OnPropertyChanged(nameof(MicEchoWetMixDisplay));
+        UpdateAudioMonitoring();
+    }
+
+    partial void OnMicReverbChanged(bool value)
+    {
+        NotifyVocalFxChanged();
+        UpdateAudioMonitoring();
+    }
+    partial void OnMicReverbRoomSizeChanged(double value)
+    {
+        OnPropertyChanged(nameof(MicReverbRoomSizeDisplay));
+        UpdateAudioMonitoring();
+    }
+    partial void OnMicReverbDampingChanged(double value)
+    {
+        OnPropertyChanged(nameof(MicReverbDampingDisplay));
+        UpdateAudioMonitoring();
+    }
+    partial void OnMicReverbWetMixChanged(double value)
+    {
+        OnPropertyChanged(nameof(MicReverbWetMixDisplay));
+        UpdateAudioMonitoring();
+    }
+
+    private void NotifyVocalFxChanged()
+    {
+        OnPropertyChanged(nameof(HasActiveVocalFx));
+        OnPropertyChanged(nameof(VocalFxBadgeText));
+        OnPropertyChanged(nameof(VocalFxStatusSummary));
     }
 
     [RelayCommand]
     private void ResetPitchShift()
     {
         MicPitchShiftSemitones = 0;
+    }
+
+    [RelayCommand]
+    public void OpenVocalStudio()
+    {
+        try
+        {
+            var window = new VocalStudioWindow
+            {
+                DataContext = this
+            };
+
+            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
+            {
+                window.Show(desktop.MainWindow);
+            }
+            else
+            {
+                window.Show();
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Không thể mở cửa sổ Vocal Studio: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task CalibrateLatencyWithPulseAsync()
+    {
+        if (IsDetectingLatency) return;
+        IsDetectingLatency = true;
+        LatencyStatusMessage = "Đang phát xung bíp kiểm âm 10ms...";
+        HasDetectedLatency = false;
+
+        try
+        {
+            var res = await _latencyDetector.CalibrateWithPulseAsync();
+            if (res.HasValue)
+            {
+                DetectedLatencyMs = res.Value;
+                LatencyConfidence = _latencyDetector.ConfidencePercent;
+                HasDetectedLatency = true;
+                LatencyStatusMessage = _latencyDetector.StatusMessage;
+            }
+            else
+            {
+                LatencyStatusMessage = _latencyDetector.StatusMessage;
+            }
+        }
+        catch (Exception ex)
+        {
+            LatencyStatusMessage = $"Lỗi đo xung: {ex.Message}";
+        }
+        finally
+        {
+            IsDetectingLatency = false;
+        }
+    }
+
+    [RelayCommand]
+    private void DetectLatencyFromLiveAudio()
+    {
+        if (IsDetectingLatency) return;
+        IsDetectingLatency = true;
+        LatencyStatusMessage = "Đang phân tích tương quan sóng âm bài hát & micro...";
+        HasDetectedLatency = false;
+
+        try
+        {
+            _engine.AudioRecorder.GetLatestAudioSnapshot(out var speaker, out var mic);
+            var res = _latencyDetector.AnalyzeCrossCorrelation(speaker, mic, 48000);
+            if (res.HasValue)
+            {
+                DetectedLatencyMs = res.Value;
+                LatencyConfidence = _latencyDetector.ConfidencePercent;
+                HasDetectedLatency = true;
+                LatencyStatusMessage = $"Đã phát hiện độ lệch bài hát & micro: {res.Value} ms (Độ tin cậy: {LatencyConfidence:0.0}%)";
+            }
+            else
+            {
+                LatencyStatusMessage = "Chưa phát hiện được sự trùng khớp. Hãy mở nhạc và hát theo lời để phân tích.";
+            }
+        }
+        catch (Exception ex)
+        {
+            LatencyStatusMessage = $"Lỗi: {ex.Message}";
+        }
+        finally
+        {
+            IsDetectingLatency = false;
+        }
+    }
+
+    [RelayCommand]
+    private void ApplyDetectedLatencyToSyncOffset()
+    {
+        if (!HasDetectedLatency) return;
+        MicSyncOffsetMs = -DetectedLatencyMs;
+        LatencyStatusMessage = $"Đã áp dụng bù trừ lệch tiếng: Mic Sync Offset = {MicSyncOffsetMs} ms";
     }
 
     private void UpdateAudioMonitoring()
@@ -637,7 +883,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             MicCompressor, MicCompressorThresholdDb, MicCompressorRatio,
             SelectedVocalProfile, MicDeEsser,
             MicAutoTune, SelectedAutoTuneKey, SelectedAutoTuneScale,
-            MicAutoTuneSpeed, MicPitchShiftSemitones
+            MicAutoTuneSpeed, MicPitchShiftSemitones,
+            MicEcho, MicEchoDelayMs, MicEchoFeedback, MicEchoWetMix,
+            MicReverb, MicReverbRoomSize, MicReverbDamping, MicReverbWetMix
         );
     }
 
@@ -815,6 +1063,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             MicAutoTuneScale = SelectedAutoTuneScale,
             MicAutoTuneSpeed = MicAutoTuneSpeed,
             MicPitchShiftSemitones = MicPitchShiftSemitones,
+            MicEcho = MicEcho,
+            MicEchoDelayMs = MicEchoDelayMs,
+            MicEchoFeedback = MicEchoFeedback,
+            MicEchoWetMix = MicEchoWetMix,
+            MicReverb = MicReverb,
+            MicReverbRoomSize = MicReverbRoomSize,
+            MicReverbDamping = MicReverbDamping,
+            MicReverbWetMix = MicReverbWetMix,
             RecordCtrl = RecordCtrl,
             RecordAlt = RecordAlt,
             RecordShift = RecordShift,
