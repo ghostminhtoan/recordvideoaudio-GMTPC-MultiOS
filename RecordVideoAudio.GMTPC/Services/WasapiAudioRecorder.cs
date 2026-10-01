@@ -255,9 +255,22 @@ public class WasapiAudioRecorder : IDisposable
         {
             _monitorProvider.UpdateSettings(_monitorMode, _monitoringVolume);
 
-            if (!IsRecording && _monitorMode == AudioMonitorMode.MasterMix && _loopbackRecorder == null)
+            if (!IsRecording)
             {
-                StartStandaloneLoopbackRecorder();
+                if (_monitorMode == AudioMonitorMode.MasterMix && _loopbackRecorder == null)
+                {
+                    StartStandaloneLoopbackRecorder();
+                }
+                else if (_monitorMode == AudioMonitorMode.MicOnly && _loopbackRecorder != null)
+                {
+                    try { _loopbackRecorder.StopRecording(); _loopbackRecorder.Dispose(); } catch { }
+                    _loopbackRecorder = null;
+                }
+
+                if (_micRecorder == null)
+                {
+                    StartStandaloneMicRecorder();
+                }
             }
         }
     }
@@ -282,13 +295,13 @@ public class WasapiAudioRecorder : IDisposable
             _monitorPlayer.Init(_monitorProvider);
             _monitorPlayer.Play();
 
+            _isMonitoring = true;
+
             if (!IsRecording)
             {
                 if (_micRecorder == null) StartStandaloneMicRecorder();
                 if (_monitorMode == AudioMonitorMode.MasterMix && _loopbackRecorder == null) StartStandaloneLoopbackRecorder();
             }
-
-            _isMonitoring = true;
         }
         catch { }
     }
@@ -508,6 +521,7 @@ public class WasapiAudioRecorder : IDisposable
         );
 
         ResetDspFilters();
+        StopStandaloneRecorders();
 
         try
         {
@@ -594,7 +608,7 @@ public class WasapiAudioRecorder : IDisposable
                         {
                             try
                             {
-                                if (_micWriter != null && !buffer.IsEmpty)
+                                if (!buffer.IsEmpty)
                                 {
                                     if (_micBuffer.Length < buffer.Length)
                                     {
@@ -604,14 +618,20 @@ public class WasapiAudioRecorder : IDisposable
                                     buffer.CopyTo(_micBuffer);
                                     Span<byte> workSpan = _micBuffer.AsSpan(0, buffer.Length);
 
-                                    var fmt = _micRecorder.WaveFormat;
-                                    ProcessMicData(workSpan, fmt.BitsPerSample, fmt.Channels, fmt.SampleRate);
-
-                                    _micWriter.Enqueue(workSpan);
-
-                                    if (_isMonitoring && _monitorProvider != null)
+                                    if (_micRecorder != null)
                                     {
-                                        _monitorProvider.EnqueueSamples(workSpan, fmt.BitsPerSample, fmt.Channels, fmt.SampleRate, _latestSpeakerAudio, _speakerAudioWritePos, _monitorMode == AudioMonitorMode.MasterMix, _currentDuckingGain);
+                                        var fmt = _micRecorder.WaveFormat;
+                                        ProcessMicData(workSpan, fmt.BitsPerSample, fmt.Channels, fmt.SampleRate);
+
+                                        if (_micWriter != null)
+                                        {
+                                            _micWriter.Enqueue(workSpan);
+                                        }
+
+                                        if (_isMonitoring && _monitorProvider != null)
+                                        {
+                                            _monitorProvider.EnqueueSamples(workSpan, fmt.BitsPerSample, fmt.Channels, fmt.SampleRate, _latestSpeakerAudio, _speakerAudioWritePos, _monitorMode == AudioMonitorMode.MasterMix, _currentDuckingGain);
+                                        }
                                     }
                                 }
                             }
@@ -1262,8 +1282,28 @@ public class WasapiAudioRecorder : IDisposable
         }
         catch { }
 
-        // If NOT in active monitoring mode, stop and dispose all capture & silence hardware engines
-        if (!_isMonitoring)
+        // If in active monitoring mode, restart standalone recorders to maintain continuous headphone audio
+        if (_isMonitoring)
+        {
+            if (_micRecorder != null)
+            {
+                try { _micRecorder.StopRecording(); _micRecorder.Dispose(); } catch { }
+                _micRecorder = null;
+            }
+            if (_loopbackRecorder != null)
+            {
+                try { _loopbackRecorder.StopRecording(); _loopbackRecorder.Dispose(); } catch { }
+                _loopbackRecorder = null;
+            }
+            try { if (_silencePlayer != null) { _silencePlayer.Stop(); _silencePlayer.Dispose(); _silencePlayer = null; } } catch { }
+
+            StartStandaloneMicRecorder();
+            if (_monitorMode == AudioMonitorMode.MasterMix)
+            {
+                StartStandaloneLoopbackRecorder();
+            }
+        }
+        else
         {
             try
             {
@@ -1396,7 +1436,7 @@ public class WasapiAudioRecorder : IDisposable
         public int Read(Span<byte> buffer)
         {
             buffer.Clear();
-            if (_format.BitsPerSample == 32 && _format.Encoding == WaveFormatEncoding.IeeeFloat)
+            if (_format.BitsPerSample == 32)
             {
                 var span = MemoryMarshal.Cast<byte, float>(buffer);
                 for (int i = 0; i < span.Length; i += _format.Channels)
@@ -1428,10 +1468,14 @@ public class WasapiAudioRecorder : IDisposable
     private sealed class LiveMonitorWaveProvider : IWaveProvider
     {
         private readonly WaveFormat _format;
-        private readonly float[] _ringBuffer = new float[48000]; // 1s circular buffer
+        private readonly float[] _ringBuffer = new float[192000]; // 2s circular buffer at 48kHz stereo
         private int _writeIndex = 0;
         private int _readIndex = 0;
+        private int _bufferedSamples = 0;
         private readonly object _lock = new();
+
+        private float[] _tempInL = new float[2048];
+        private float[] _tempInR = new float[2048];
 
         private volatile float _volume = 1.0f;
         private volatile AudioMonitorMode _mode = AudioMonitorMode.MicOnly;
@@ -1463,71 +1507,120 @@ public class WasapiAudioRecorder : IDisposable
         {
             if (micData.IsEmpty) return;
 
+            int inFrames = 0;
+            if (bitsPerSample == 32)
+            {
+                var span = MemoryMarshal.Cast<byte, float>(micData);
+                inFrames = span.Length / Math.Max(1, micChannels);
+                if (inFrames <= 0) return;
+
+                if (_tempInL.Length < inFrames)
+                {
+                    _tempInL = new float[Math.Max(_tempInL.Length * 2, inFrames)];
+                    _tempInR = new float[_tempInL.Length];
+                }
+
+                for (int f = 0; f < inFrames; f++)
+                {
+                    _tempInL[f] = span[f * micChannels];
+                    _tempInR[f] = micChannels > 1 ? span[f * micChannels + 1] : _tempInL[f];
+                }
+            }
+            else if (bitsPerSample == 16)
+            {
+                var span = MemoryMarshal.Cast<byte, short>(micData);
+                inFrames = span.Length / Math.Max(1, micChannels);
+                if (inFrames <= 0) return;
+
+                if (_tempInL.Length < inFrames)
+                {
+                    _tempInL = new float[Math.Max(_tempInL.Length * 2, inFrames)];
+                    _tempInR = new float[_tempInL.Length];
+                }
+
+                for (int f = 0; f < inFrames; f++)
+                {
+                    _tempInL[f] = span[f * micChannels] / 32768.0f;
+                    _tempInR[f] = micChannels > 1 ? (span[f * micChannels + 1] / 32768.0f) : _tempInL[f];
+                }
+            }
+            else
+            {
+                return;
+            }
+
             int renderChannels = _format.Channels;
+            int renderRate = _format.SampleRate;
+
+            int outFrames = inFrames;
+            bool needsResampling = micSampleRate > 0 && renderRate > 0 && micSampleRate != renderRate;
+            if (needsResampling)
+            {
+                outFrames = Math.Max(1, (int)MathF.Round((float)inFrames * renderRate / micSampleRate));
+            }
 
             lock (_lock)
             {
-                // Giữ độ trễ siêu thấp: nếu buffer tích tụ quá 35ms, drop bớt mẫu cũ
-                int maxLatency = (int)(_format.SampleRate * renderChannels * 0.035);
-                int buffered = (_writeIndex - _readIndex + _ringBuffer.Length) % _ringBuffer.Length;
-                if (buffered > maxLatency)
+                for (int outF = 0; outF < outFrames; outF++)
                 {
-                    _readIndex = (_writeIndex - (int)(_format.SampleRate * renderChannels * 0.012) + _ringBuffer.Length) % _ringBuffer.Length;
-                }
-
-                if (bitsPerSample == 32)
-                {
-                    var span = MemoryMarshal.Cast<byte, float>(micData);
-                    int micFrames = span.Length / Math.Max(1, micChannels);
-                    for (int f = 0; f < micFrames; f++)
+                    float micL, micR;
+                    if (!needsResampling)
                     {
-                        float micL = span[f * micChannels];
-                        float micR = micChannels > 1 ? span[f * micChannels + 1] : micL;
+                        micL = _tempInL[outF];
+                        micR = _tempInR[outF];
+                    }
+                    else
+                    {
+                        float srcPos = (float)outF * micSampleRate / renderRate;
+                        int idx0 = Math.Clamp((int)srcPos, 0, inFrames - 1);
+                        int idx1 = Math.Min(idx0 + 1, inFrames - 1);
+                        float frac = srcPos - idx0;
+                        micL = _tempInL[idx0] * (1.0f - frac) + _tempInL[idx1] * frac;
+                        micR = _tempInR[idx0] * (1.0f - frac) + _tempInR[idx1] * frac;
+                    }
 
-                        if (includeSpeaker)
-                        {
-                            int spkIdx = (speakerWritePos - micFrames + f + speakerBuffer.Length) % speakerBuffer.Length;
-                            float spk = speakerBuffer[spkIdx] * duckingGain;
-                            micL = Math.Clamp(micL * 0.95f + spk * 0.85f, -1.0f, 1.0f);
-                            micR = Math.Clamp(micR * 0.95f + spk * 0.85f, -1.0f, 1.0f);
-                        }
+                    if (includeSpeaker && speakerBuffer != null && speakerBuffer.Length > 0)
+                    {
+                        int spkIdx = (speakerWritePos - outFrames + outF + speakerBuffer.Length) % speakerBuffer.Length;
+                        float spk = speakerBuffer[spkIdx] * duckingGain;
+                        micL = Math.Clamp(micL * 0.95f + spk * 0.85f, -1.0f, 1.0f);
+                        micR = Math.Clamp(micR * 0.95f + spk * 0.85f, -1.0f, 1.0f);
+                    }
 
+                    if (renderChannels == 1)
+                    {
+                        _ringBuffer[_writeIndex] = (micL + micR) * 0.5f;
+                        _writeIndex = (_writeIndex + 1) % _ringBuffer.Length;
+                    }
+                    else
+                    {
                         _ringBuffer[_writeIndex] = micL;
                         _writeIndex = (_writeIndex + 1) % _ringBuffer.Length;
 
-                        if (renderChannels > 1)
+                        _ringBuffer[_writeIndex] = micR;
+                        _writeIndex = (_writeIndex + 1) % _ringBuffer.Length;
+
+                        for (int ch = 2; ch < renderChannels; ch++)
                         {
-                            _ringBuffer[_writeIndex] = micR;
+                            _ringBuffer[_writeIndex] = 0.0f;
                             _writeIndex = (_writeIndex + 1) % _ringBuffer.Length;
                         }
                     }
                 }
-                else if (bitsPerSample == 16)
+
+                _bufferedSamples = Math.Min(_ringBuffer.Length, _bufferedSamples + outFrames * renderChannels);
+
+                // Giữ độ trễ thấp tự nhiên (~40ms), nếu tích tụ quá 100ms do giật lag OS thì nhảy lên bắt kịp
+                int maxLatencySamples = (int)(renderRate * renderChannels * 0.100);
+                int targetLatencySamples = (int)(renderRate * renderChannels * 0.040);
+                targetLatencySamples -= (targetLatencySamples % renderChannels);
+
+                if (_bufferedSamples > maxLatencySamples)
                 {
-                    var span = MemoryMarshal.Cast<byte, short>(micData);
-                    int micFrames = span.Length / Math.Max(1, micChannels);
-                    for (int f = 0; f < micFrames; f++)
-                    {
-                        float micL = span[f * micChannels] / 32768.0f;
-                        float micR = micChannels > 1 ? (span[f * micChannels + 1] / 32768.0f) : micL;
-
-                        if (includeSpeaker)
-                        {
-                            int spkIdx = (speakerWritePos - micFrames + f + speakerBuffer.Length) % speakerBuffer.Length;
-                            float spk = speakerBuffer[spkIdx] * duckingGain;
-                            micL = Math.Clamp(micL * 0.95f + spk * 0.85f, -1.0f, 1.0f);
-                            micR = Math.Clamp(micR * 0.95f + spk * 0.85f, -1.0f, 1.0f);
-                        }
-
-                        _ringBuffer[_writeIndex] = micL;
-                        _writeIndex = (_writeIndex + 1) % _ringBuffer.Length;
-
-                        if (renderChannels > 1)
-                        {
-                            _ringBuffer[_writeIndex] = micR;
-                            _writeIndex = (_writeIndex + 1) % _ringBuffer.Length;
-                        }
-                    }
+                    int drop = _bufferedSamples - targetLatencySamples;
+                    drop -= (drop % renderChannels);
+                    _readIndex = (_readIndex + drop) % _ringBuffer.Length;
+                    _bufferedSamples -= drop;
                 }
             }
         }
@@ -1542,17 +1635,18 @@ public class WasapiAudioRecorder : IDisposable
             buffer.Clear();
             float vol = _volume;
 
-            if (_format.BitsPerSample == 32 && _format.Encoding == WaveFormatEncoding.IeeeFloat)
+            if (_format.BitsPerSample == 32)
             {
                 var span = MemoryMarshal.Cast<byte, float>(buffer);
                 lock (_lock)
                 {
                     for (int i = 0; i < span.Length; i++)
                     {
-                        if (_readIndex != _writeIndex)
+                        if (_bufferedSamples > 0)
                         {
                             span[i] = _ringBuffer[_readIndex] * vol;
                             _readIndex = (_readIndex + 1) % _ringBuffer.Length;
+                            _bufferedSamples--;
                         }
                         else
                         {
@@ -1569,16 +1663,40 @@ public class WasapiAudioRecorder : IDisposable
                 {
                     for (int i = 0; i < span.Length; i++)
                     {
-                        if (_readIndex != _writeIndex)
+                        if (_bufferedSamples > 0)
                         {
                             float s = _ringBuffer[_readIndex] * vol;
                             span[i] = (short)Math.Clamp((int)MathF.Round(s * 32767.0f), -32768, 32767);
                             _readIndex = (_readIndex + 1) % _ringBuffer.Length;
+                            _bufferedSamples--;
                         }
                         else
                         {
                             span[i] = 0;
                         }
+                    }
+                }
+                return buffer.Length;
+            }
+            else if (_format.BitsPerSample == 24)
+            {
+                lock (_lock)
+                {
+                    int sampleCount = buffer.Length / 3;
+                    for (int i = 0; i < sampleCount; i++)
+                    {
+                        float s = 0.0f;
+                        if (_bufferedSamples > 0)
+                        {
+                            s = _ringBuffer[_readIndex] * vol;
+                            _readIndex = (_readIndex + 1) % _ringBuffer.Length;
+                            _bufferedSamples--;
+                        }
+                        int intVal = Math.Clamp((int)MathF.Round(s * 8388607.0f), -8388608, 8388607);
+                        int byteOffset = i * 3;
+                        buffer[byteOffset] = (byte)(intVal & 0xFF);
+                        buffer[byteOffset + 1] = (byte)((intVal >> 8) & 0xFF);
+                        buffer[byteOffset + 2] = (byte)((intVal >> 16) & 0xFF);
                     }
                 }
                 return buffer.Length;
