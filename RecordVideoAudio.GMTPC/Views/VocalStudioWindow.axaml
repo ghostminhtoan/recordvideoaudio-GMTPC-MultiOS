@@ -68,6 +68,42 @@
         <Style Selector="TabItem:selected TextBlock">
             <Setter Property="Foreground" Value="#00FFFF" />
         </Style>
+
+        <!-- Toàn bộ Option (CheckBox) khi Hover đều chuyển sang màu Vàng (Yellow: #FFE600) sáng rực rỡ -->
+        <Style Selector="CheckBox:pointerover">
+            <Setter Property="Foreground" Value="#FFE600" />
+        </Style>
+        <Style Selector="CheckBox:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="#FFE600" />
+            <Setter Property="TextBlock.Foreground" Value="#FFE600" />
+        </Style>
+        <Style Selector="CheckBox:pointerover TextBlock">
+            <Setter Property="Foreground" Value="#FFE600" />
+        </Style>
+        <Style Selector="CheckBox:pointerover /template/ Border#PART_Border">
+            <Setter Property="BorderBrush" Value="#FFE600" />
+        </Style>
+
+        <Style Selector="CheckBox:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="#FFE600" />
+            <Setter Property="TextBlock.Foreground" Value="#FFE600" />
+        </Style>
+        <Style Selector="CheckBox:checked:pointerover TextBlock">
+            <Setter Property="Foreground" Value="#FFE600" />
+        </Style>
+
+        <!-- ComboBoxItem khi Hover chuyển sang màu Vàng -->
+        <Style Selector="ComboBoxItem:pointerover">
+            <Setter Property="Foreground" Value="#FFE600" />
+            <Setter Property="Background" Value="#1E293B" />
+        </Style>
+        <Style Selector="ComboBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="#FFE600" />
+            <Setter Property="TextBlock.Foreground" Value="#FFE600" />
+        </Style>
+        <Style Selector="ComboBoxItem:pointerover TextBlock">
+            <Setter Property="Foreground" Value="#FFE600" />
+        </Style>
     </Window.Styles>
 
     <Grid RowDefinitions="Auto,*,Auto" Margin="16">

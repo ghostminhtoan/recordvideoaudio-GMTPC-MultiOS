@@ -2,8 +2,26 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="using:RecordVideoAudio.GMTPC"
              x:Class="RecordVideoAudio.GMTPC.App"
-             RequestedThemeVariant="Default">
-             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
+             RequestedThemeVariant="Dark">
+
+    <Application.Resources>
+        <!-- CheckBox Hover Colors: Yellow #FFE600 -->
+        <SolidColorBrush x:Key="CheckBoxForegroundPointerOver" Color="#FFE600" />
+        <SolidColorBrush x:Key="CheckBoxForegroundCheckedPointerOver" Color="#FFE600" />
+        <SolidColorBrush x:Key="CheckBoxForegroundUncheckedPointerOver" Color="#FFE600" />
+        <SolidColorBrush x:Key="CheckBoxForegroundIndeterminatePointerOver" Color="#FFE600" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokePointerOver" Color="#FFE600" />
+        <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillPointerOver" Color="#1E293B" />
+        <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundPointerOver" Color="#FFE600" />
+
+        <!-- RadioButton Hover Colors: Yellow #FFE600 -->
+        <SolidColorBrush x:Key="RadioButtonForegroundPointerOver" Color="#FFE600" />
+        <SolidColorBrush x:Key="RadioButtonForegroundCheckedPointerOver" Color="#FFE600" />
+
+        <!-- ComboBoxItem Hover Colors: Yellow #FFE600 -->
+        <SolidColorBrush x:Key="ComboBoxItemForegroundPointerOver" Color="#FFE600" />
+        <SolidColorBrush x:Key="ComboBoxItemForegroundSelectedPointerOver" Color="#FFE600" />
+    </Application.Resources>
 
     <Application.DataTemplates>
         <local:ViewLocator />
@@ -11,5 +29,61 @@
 
     <Application.Styles>
         <FluentTheme />
+
+        <!-- Toàn bộ Option (CheckBox) khi Hover đều chuyển sang màu Vàng (Yellow: #FFE600) sáng rực rỡ -->
+        <Style Selector="CheckBox:pointerover">
+            <Setter Property="Foreground" Value="#FFE600" />
+        </Style>
+        <Style Selector="CheckBox:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="#FFE600" />
+            <Setter Property="TextBlock.Foreground" Value="#FFE600" />
+        </Style>
+        <Style Selector="CheckBox:pointerover TextBlock">
+            <Setter Property="Foreground" Value="#FFE600" />
+        </Style>
+        <Style Selector="CheckBox:pointerover /template/ Border#PART_Border">
+            <Setter Property="BorderBrush" Value="#FFE600" />
+        </Style>
+
+        <Style Selector="CheckBox:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="#FFE600" />
+            <Setter Property="TextBlock.Foreground" Value="#FFE600" />
+        </Style>
+        <Style Selector="CheckBox:checked:pointerover TextBlock">
+            <Setter Property="Foreground" Value="#FFE600" />
+        </Style>
+
+        <!-- RadioButton khi Hover đều chuyển sang màu Vàng -->
+        <Style Selector="RadioButton:pointerover">
+            <Setter Property="Foreground" Value="#FFE600" />
+        </Style>
+        <Style Selector="RadioButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="#FFE600" />
+            <Setter Property="TextBlock.Foreground" Value="#FFE600" />
+        </Style>
+        <Style Selector="RadioButton:pointerover TextBlock">
+            <Setter Property="Foreground" Value="#FFE600" />
+        </Style>
+
+        <!-- ComboBoxItem và ComboBox khi Hover đều chuyển sang màu Vàng -->
+        <Style Selector="ComboBoxItem:pointerover">
+            <Setter Property="Foreground" Value="#FFE600" />
+            <Setter Property="Background" Value="#1E293B" />
+        </Style>
+        <Style Selector="ComboBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="#FFE600" />
+            <Setter Property="TextBlock.Foreground" Value="#FFE600" />
+        </Style>
+        <Style Selector="ComboBoxItem:pointerover TextBlock">
+            <Setter Property="Foreground" Value="#FFE600" />
+        </Style>
+
+        <Style Selector="ComboBox:pointerover">
+            <Setter Property="Foreground" Value="#FFE600" />
+            <Setter Property="BorderBrush" Value="#FFE600" />
+        </Style>
+        <Style Selector="ComboBox:pointerover TextBlock">
+            <Setter Property="Foreground" Value="#FFE600" />
+        </Style>
     </Application.Styles>
 </Application>
