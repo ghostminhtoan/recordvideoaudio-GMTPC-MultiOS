@@ -343,6 +343,18 @@
                                         </StackPanel>
                                     </Grid>
 
+                                    <!-- Auto Ducking Speaker -->
+                                    <Border Background="#10192D" CornerRadius="6" Padding="8,4" BorderBrush="#1F2D4A" BorderThickness="1" Margin="0,3,0,0">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <CheckBox Content="🦆 Tự giảm âm lượng Loa khi nói (Auto Ducking)" 
+                                                      IsChecked="{Binding SpeakerAutoDucking}"
+                                                      FontSize="10" Foreground="#00F0FF" FontWeight="SemiBold"
+                                                      ToolTip.Tip="Tự động hạ nhỏ âm lượng loa khi micro đang thu tiếng nói/hát, tự phục hồi âm lượng gốc khi ngừng nói." />
+                                            <TextBlock Grid.Column="1" Text="Loa -14dB" FontSize="9" FontWeight="Bold" Foreground="#64B5F6" VerticalAlignment="Center"
+                                                       IsVisible="{Binding SpeakerAutoDucking}" />
+                                        </Grid>
+                                    </Border>
+
                                     <!-- OBS Track Matrix for Speaker -->
                                     <Grid ColumnDefinitions="Auto,*" Margin="0,4,0,0">
                                         <TextBlock Text="Định tuyến Audio Track:" FontSize="10" Foreground="#A0AEC0" VerticalAlignment="Center" Margin="0,0,6,0" />

@@ -25,6 +25,8 @@ public class WasapiAudioRecorder : IDisposable
     private volatile bool _recordSpeaker = true;
     private volatile float _speakerVolume = 1.0f;
     private volatile float _speakerGainDb = 0.0f;
+    private volatile bool _speakerAutoDucking = false;
+    private float _currentDuckingGain = 1.0f;
 
     private volatile bool _recordMic = true;
     private volatile float _micVolume = 0.9f;
@@ -165,11 +167,13 @@ public class WasapiAudioRecorder : IDisposable
         bool micAutoTune, MusicalKey micAutoTuneKey, AutoTuneScale micAutoTuneScale,
         int micAutoTuneSpeed, int micPitchShiftSemitones,
         bool micEcho = false, int micEchoDelayMs = 220, double micEchoFeedback = 35.0, double micEchoWetMix = 30.0,
-        bool micReverb = false, double micReverbRoomSize = 50.0, double micReverbDamping = 40.0, double micReverbWetMix = 25.0)
+        bool micReverb = false, double micReverbRoomSize = 50.0, double micReverbDamping = 40.0, double micReverbWetMix = 25.0,
+        bool speakerAutoDucking = false)
     {
         _recordSpeaker = recordSpeaker;
         _speakerVolume = (float)Math.Clamp(speakerVolume / 100.0, 0.0, 1.0);
         _speakerGainDb = (float)Math.Clamp(speakerGainDb, -50.0, 50.0);
+        _speakerAutoDucking = speakerAutoDucking;
 
         _recordMic = recordMic;
         _micVolume = (float)Math.Clamp(micVolume / 100.0, 0.0, 1.0);
@@ -206,7 +210,8 @@ public class WasapiAudioRecorder : IDisposable
         bool recordSpeaker, double speakerVolume, double speakerGainDb,
         bool recordMic, double micVolume, double micGainDb,
         bool micNoiseSuppression, bool micNoiseGate, double micNoiseGateThresholdDb,
-        bool micHighPassFilter)
+        bool micHighPassFilter,
+        bool speakerAutoDucking = false)
     {
         UpdateRealtimeSettings(
             recordSpeaker, speakerVolume, speakerGainDb,
@@ -218,7 +223,8 @@ public class WasapiAudioRecorder : IDisposable
             _micAutoTune, _micAutoTuneKey, _micAutoTuneScale,
             _micAutoTuneSpeed, _micPitchShiftSemitones,
             _micEcho, _micEchoDelayMs, _micEchoFeedback * 100.0, _micEchoWetMix * 100.0,
-            _micReverb, _micReverbRoomSize * 100.0, _micReverbDamping * 100.0, _micReverbWetMix * 100.0
+            _micReverb, _micReverbRoomSize * 100.0, _micReverbDamping * 100.0, _micReverbWetMix * 100.0,
+            speakerAutoDucking
         );
     }
 
@@ -239,7 +245,8 @@ public class WasapiAudioRecorder : IDisposable
         bool recordMic, float micVolume, double micGainDb,
         bool micNoiseSuppression, bool micNoiseGate, double micNoiseGateThresholdDb,
         bool micHighPassFilter,
-        string outDir)
+        string outDir,
+        bool speakerAutoDucking = false)
     {
         return StartRecording(
             recordSpeaker, speakerVolume, speakerGainDb,
@@ -250,7 +257,10 @@ public class WasapiAudioRecorder : IDisposable
             _micVocalProfile, _micDeEsser,
             _micAutoTune, _micAutoTuneKey, _micAutoTuneScale,
             _micAutoTuneSpeed, _micPitchShiftSemitones,
-            outDir
+            outDir,
+            _micEcho, _micEchoDelayMs, _micEchoFeedback * 100.0, _micEchoWetMix * 100.0,
+            _micReverb, _micReverbRoomSize * 100.0, _micReverbDamping * 100.0, _micReverbWetMix * 100.0,
+            speakerAutoDucking
         );
     }
 
@@ -265,7 +275,8 @@ public class WasapiAudioRecorder : IDisposable
         int micAutoTuneSpeed, int micPitchShiftSemitones,
         string outDir,
         bool micEcho = false, int micEchoDelayMs = 220, double micEchoFeedback = 35.0, double micEchoWetMix = 30.0,
-        bool micReverb = false, double micReverbRoomSize = 50.0, double micReverbDamping = 40.0, double micReverbWetMix = 25.0)
+        bool micReverb = false, double micReverbRoomSize = 50.0, double micReverbDamping = 40.0, double micReverbWetMix = 25.0,
+        bool speakerAutoDucking = false)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             return null;
@@ -282,7 +293,8 @@ public class WasapiAudioRecorder : IDisposable
             micAutoTune, micAutoTuneKey, micAutoTuneScale,
             micAutoTuneSpeed, micPitchShiftSemitones,
             micEcho, micEchoDelayMs, micEchoFeedback, micEchoWetMix,
-            micReverb, micReverbRoomSize, micReverbDamping, micReverbWetMix
+            micReverb, micReverbRoomSize, micReverbDamping, micReverbWetMix,
+            speakerAutoDucking
         );
 
         ResetDspFilters();
@@ -448,6 +460,7 @@ public class WasapiAudioRecorder : IDisposable
         _compEnvelope = 0.0f;
         _sibilanceEnvelope = 0.0f;
         _deEsserGain = 1.0f;
+        _currentDuckingGain = 1.0f;
     }
 
     private void ProcessSpeakerData(Span<byte> data, int bitsPerSample)
@@ -458,8 +471,13 @@ public class WasapiAudioRecorder : IDisposable
             return;
         }
 
+        // Auto Ducking: Tự động hạ âm lượng Loa khi Micro đang thu tiếng nói/hát
+        float targetDuck = (_speakerAutoDucking && _recordMic && _micVoiceEnvelope > 0.012f) ? 0.20f : 1.0f;
+        float duckAlpha = targetDuck < _currentDuckingGain ? 0.005f : 0.0005f;
+        _currentDuckingGain += (targetDuck - _currentDuckingGain) * duckAlpha;
+
         float linearGain = MathF.Pow(10.0f, _speakerGainDb / 20.0f);
-        float totalMultiplier = _speakerVolume * linearGain;
+        float totalMultiplier = _speakerVolume * linearGain * _currentDuckingGain;
 
         if (bitsPerSample == 32)
         {

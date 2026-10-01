@@ -4,7 +4,8 @@ $rootDir = $PSScriptRoot
 $distDir = Join-Path $rootDir "dist"
 
 # Đóng tiến trình cũ nếu đang mở để tránh bị lock file
-Stop-Process -Name "RecordVideoAudio.GMTPC*" -Force -ErrorAction SilentlyContinue
+Get-CimInstance Win32_Process -Filter "name like 'RecordVideoAudio%'" -ErrorAction SilentlyContinue | Invoke-CimMethod -MethodName Terminate -ErrorAction SilentlyContinue | Out-Null
+Stop-Process -Name "RecordVideoAudio*" -Force -ErrorAction SilentlyContinue
 Start-Sleep -Milliseconds 500
 
 Write-Host "==========================================================" -ForegroundColor Cyan
@@ -27,13 +28,17 @@ Get-ChildItem -Path $distDir -File -Filter "*.pdb" -ErrorAction SilentlyContinue
 
 function Safe-CopyExecutable {
     param([string]$Source, [string]$Destination)
-    if (Test-Path $Destination) {
-        $oldFile = "$Destination.old"
-        Remove-Item $oldFile -Force -ErrorAction SilentlyContinue
-        Move-Item $Destination $oldFile -Force -ErrorAction SilentlyContinue
+    try {
+        if (Test-Path $Destination) {
+            $oldFile = "$Destination.old"
+            Remove-Item $oldFile -Force -ErrorAction SilentlyContinue
+            Move-Item $Destination $oldFile -Force -ErrorAction SilentlyContinue
+        }
+        Copy-Item $Source $Destination -Force
+        Remove-Item "$Destination.old" -Force -ErrorAction SilentlyContinue
+    } catch {
+        Write-Warning "Không thể ghi đè $($Destination): $_"
     }
-    Copy-Item $Source $Destination -Force
-    Remove-Item "$Destination.old" -Force -ErrorAction SilentlyContinue
 }
 
 # 1. Xuất bản Windows x64 (Self-Contained Single-File)

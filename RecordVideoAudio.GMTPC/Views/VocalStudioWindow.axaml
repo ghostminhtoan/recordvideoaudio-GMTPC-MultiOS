@@ -6,7 +6,9 @@
         Title="GMTPC VOCAL STUDIO &amp; KARAOKE FX RACK"
         Width="800" Height="640"
         MinWidth="740" MinHeight="580"
-        WindowStartupLocation="CenterOwner"
+        WindowStartupLocation="CenterScreen"
+        ShowInTaskbar="True"
+        CanResize="True"
         Background="#080C16">
 
     <Window.Styles>
@@ -314,6 +316,18 @@
                                               Height="28" FontSize="11" />
                                 </Grid>
                             </StackPanel>
+                        </Border>
+
+                        <!-- Speaker Auto Ducking Block -->
+                        <Border Background="#10192D" CornerRadius="8" Padding="14" BorderBrush="#1F2D4A" BorderThickness="1">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Spacing="4" VerticalAlignment="Center">
+                                    <TextBlock Text="🦆 TỰ GIẢM NHẠC KHI NÓI (AUTO DUCKING SPEAKER)" FontWeight="Bold" FontSize="12" Foreground="#00F0FF" />
+                                    <TextBlock Text="Tự động giảm âm lượng loa (nhạc nền karaoke, game) xuống -14dB khi micro đang thu tiếng nói/hát, tự phục hồi khi ngừng nói." FontSize="10" Foreground="#8892B0" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <CheckBox Grid.Column="1" Content="Bật Auto Ducking" IsChecked="{Binding SpeakerAutoDucking}"
+                                          FontSize="11" Foreground="#00F0FF" FontWeight="Bold" VerticalAlignment="Center" Margin="10,0,0,0" />
+                            </Grid>
                         </Border>
 
                     </StackPanel>

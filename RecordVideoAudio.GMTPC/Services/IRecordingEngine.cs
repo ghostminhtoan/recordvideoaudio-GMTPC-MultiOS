@@ -40,7 +40,8 @@ public interface IRecordingEngine : IDisposable
         bool micAutoTune = false, MusicalKey micAutoTuneKey = MusicalKey.C, AutoTuneScale micAutoTuneScale = AutoTuneScale.Chromatic,
         int micAutoTuneSpeed = 20, int micPitchShiftSemitones = 0,
         bool micEcho = false, int micEchoDelayMs = 220, double micEchoFeedback = 35.0, double micEchoWetMix = 30.0,
-        bool micReverb = false, double micReverbRoomSize = 50.0, double micReverbDamping = 40.0, double micReverbWetMix = 25.0);
+        bool micReverb = false, double micReverbRoomSize = 50.0, double micReverbDamping = 40.0, double micReverbWetMix = 25.0,
+        bool speakerAutoDucking = false);
 }
 
 public class RecordingEngine : IRecordingEngine
@@ -109,6 +110,7 @@ public class RecordingEngine : IRecordingEngine
     private double _monitorMicReverbRoomSize = 50.0;
     private double _monitorMicReverbDamping = 40.0;
     private double _monitorMicReverbWetMix = 25.0;
+    private bool _monitorSpeakerAutoDucking = false;
 
     public void UpdateAudioMonitoringSettings(
         bool speakerEnabled, double speakerVolume,
@@ -122,11 +124,13 @@ public class RecordingEngine : IRecordingEngine
         bool micAutoTune = false, MusicalKey micAutoTuneKey = MusicalKey.C, AutoTuneScale micAutoTuneScale = AutoTuneScale.Chromatic,
         int micAutoTuneSpeed = 20, int micPitchShiftSemitones = 0,
         bool micEcho = false, int micEchoDelayMs = 220, double micEchoFeedback = 35.0, double micEchoWetMix = 30.0,
-        bool micReverb = false, double micReverbRoomSize = 50.0, double micReverbDamping = 40.0, double micReverbWetMix = 25.0)
+        bool micReverb = false, double micReverbRoomSize = 50.0, double micReverbDamping = 40.0, double micReverbWetMix = 25.0,
+        bool speakerAutoDucking = false)
     {
         _monitorSpeaker = speakerEnabled;
         _monitorSpeakerVolume = speakerVolume;
         _monitorSpeakerGainDb = speakerGainDb;
+        _monitorSpeakerAutoDucking = speakerAutoDucking;
         _monitorMic = micEnabled;
         _monitorMicVolume = micVolume;
         _monitorMicGainDb = micGainDb;
@@ -164,7 +168,8 @@ public class RecordingEngine : IRecordingEngine
             micAutoTune, micAutoTuneKey, micAutoTuneScale,
             micAutoTuneSpeed, micPitchShiftSemitones,
             micEcho, micEchoDelayMs, micEchoFeedback, micEchoWetMix,
-            micReverb, micReverbRoomSize, micReverbDamping, micReverbWetMix
+            micReverb, micReverbRoomSize, micReverbDamping, micReverbWetMix,
+            speakerAutoDucking
         );
 
         if (ActiveConfig != null)
@@ -172,6 +177,7 @@ public class RecordingEngine : IRecordingEngine
             ActiveConfig.RecordSystemAudio = speakerEnabled;
             ActiveConfig.SystemAudioVolume = (int)speakerVolume;
             ActiveConfig.SpeakerGainDb = speakerGainDb;
+            ActiveConfig.SpeakerAutoDucking = speakerAutoDucking;
             ActiveConfig.RecordMicrophone = micEnabled;
             ActiveConfig.MicrophoneVolume = (int)micVolume;
             ActiveConfig.MicGainDb = micGainDb;
@@ -265,7 +271,8 @@ public class RecordingEngine : IRecordingEngine
                 config.MicReverb,
                 config.MicReverbRoomSize,
                 config.MicReverbDamping,
-                config.MicReverbWetMix
+                config.MicReverbWetMix,
+                config.SpeakerAutoDucking
             );
             if (!string.IsNullOrEmpty(audioErr))
             {

@@ -278,6 +278,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private double speakerGainDb = 0.0; // -50.0 to +50.0 dB
 
     [ObservableProperty]
+    private bool speakerAutoDucking = false;
+
+    [ObservableProperty]
     private bool micAudioEnabled = true;
 
     [ObservableProperty]
@@ -640,6 +643,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         RefreshCommandPreview();
     }
 
+    partial void OnSpeakerAutoDuckingChanged(bool value)
+    {
+        UpdateAudioMonitoring();
+        RefreshCommandPreview();
+    }
+
     partial void OnMicAudioEnabledChanged(bool value)
     {
         UpdateAudioMonitoring();
@@ -782,24 +791,31 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         MicPitchShiftSemitones = 0;
     }
 
+    private VocalStudioWindow? _vocalStudioWindow;
+
     [RelayCommand]
     public void OpenVocalStudio()
     {
         try
         {
-            var window = new VocalStudioWindow
+            if (_vocalStudioWindow != null)
+            {
+                if (_vocalStudioWindow.WindowState == WindowState.Minimized)
+                {
+                    _vocalStudioWindow.WindowState = WindowState.Normal;
+                }
+                _vocalStudioWindow.Activate();
+                return;
+            }
+
+            _vocalStudioWindow = new VocalStudioWindow
             {
                 DataContext = this
             };
 
-            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
-            {
-                window.Show(desktop.MainWindow);
-            }
-            else
-            {
-                window.Show();
-            }
+            _vocalStudioWindow.Closed += (s, e) => _vocalStudioWindow = null;
+            // Mở hoàn toàn độc lập không gán Owner, để khi minimize FX window thì MainWindow không bị ẩn/tắt
+            _vocalStudioWindow.Show();
         }
         catch (Exception ex)
         {
@@ -934,7 +950,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             MicAutoTune, SelectedAutoTuneKey, SelectedAutoTuneScale,
             MicAutoTuneSpeed, MicPitchShiftSemitones,
             MicEcho, MicEchoDelayMs, MicEchoFeedback, MicEchoWetMix,
-            MicReverb, MicReverbRoomSize, MicReverbDamping, MicReverbWetMix
+            MicReverb, MicReverbRoomSize, MicReverbDamping, MicReverbWetMix,
+            SpeakerAutoDucking
         );
     }
 
@@ -1096,6 +1113,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             MicTrack3 = MicTrack3,
             SpeakerSyncOffsetMs = SpeakerSyncOffsetMs,
             SpeakerGainDb = SpeakerGainDb,
+            SpeakerAutoDucking = SpeakerAutoDucking,
             MicSyncOffsetMs = MicSyncOffsetMs,
             MicGainDb = MicGainDb,
             MicNoiseSuppression = MicNoiseSuppression,
