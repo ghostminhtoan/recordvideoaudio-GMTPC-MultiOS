@@ -41,15 +41,45 @@ public class AudioLatencyDetectorService : IDisposable
     public int DetectedDelayMs { get; private set; } = 0;
     public double ConfidencePercent { get; private set; } = 0.0;
 
-    public (string renderName, string captureName) GetActiveDeviceNames()
+    private MMDevice? GetRenderDevice(MMDeviceEnumerator enumerator, string? deviceId)
+    {
+        if (!string.IsNullOrEmpty(deviceId) && deviceId != "default")
+        {
+            try
+            {
+                var dev = enumerator.GetDevice(deviceId);
+                if (dev != null && dev.State == DeviceState.Active)
+                    return dev;
+            }
+            catch { }
+        }
+        return enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+    }
+
+    private MMDevice? GetCaptureDevice(MMDeviceEnumerator enumerator, string? deviceId)
+    {
+        if (!string.IsNullOrEmpty(deviceId) && deviceId != "default")
+        {
+            try
+            {
+                var dev = enumerator.GetDevice(deviceId);
+                if (dev != null && dev.State == DeviceState.Active)
+                    return dev;
+            }
+            catch { }
+        }
+        return enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia);
+    }
+
+    public (string renderName, string captureName) GetActiveDeviceNames(string? speakerDeviceId = null, string? micDeviceId = null)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             return ("Mặc định", "Mặc định");
         try
         {
             using var enumerator = new MMDeviceEnumerator();
-            using var render = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-            using var capture = enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia);
+            using var render = GetRenderDevice(enumerator, speakerDeviceId);
+            using var capture = GetCaptureDevice(enumerator, micDeviceId);
             return (render?.FriendlyName ?? "Loa / Tai nghe mặc định", capture?.FriendlyName ?? "Micro mặc định");
         }
         catch
@@ -65,7 +95,7 @@ public class AudioLatencyDetectorService : IDisposable
     /// Phát một xung âm bíp 25ms (1000Hz) qua loa/tai nghe và đo chính xác thời gian micro thu nhận lại xung đó bằng Matched Filter.
     /// Độ chính xác đạt ±1ms.
     /// </summary>
-    public async Task<int?> CalibrateWithPulseAsync(CancellationToken cancellationToken = default)
+    public async Task<int?> CalibrateWithPulseAsync(string? speakerDeviceId = null, string? micDeviceId = null, CancellationToken cancellationToken = default)
     {
         if (_isDetecting) return null;
         _isDetecting = true;
@@ -84,8 +114,8 @@ public class AudioLatencyDetectorService : IDisposable
                 }
 
                 using var enumerator = new MMDeviceEnumerator();
-                using var renderDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-                using var captureDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia);
+                using var renderDevice = GetRenderDevice(enumerator, speakerDeviceId);
+                using var captureDevice = GetCaptureDevice(enumerator, micDeviceId);
 
                 if (renderDevice == null || captureDevice == null)
                 {
@@ -233,7 +263,7 @@ public class AudioLatencyDetectorService : IDisposable
     /// <summary>
     /// Bắt đầu thu âm Live khi người dùng HOLD chuột (hỗ trợ cả Loa & Micro và Tai nghe không dây & Micro).
     /// </summary>
-    public bool StartLiveHoldCapture(LatencyMeasurementTarget target = LatencyMeasurementTarget.SpeakerAndMic, bool playMetronome = false)
+    public bool StartLiveHoldCapture(LatencyMeasurementTarget target = LatencyMeasurementTarget.SpeakerAndMic, bool playMetronome = false, string? speakerDeviceId = null, string? micDeviceId = null)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
@@ -249,8 +279,8 @@ public class AudioLatencyDetectorService : IDisposable
             try
             {
                 using var enumerator = new MMDeviceEnumerator();
-                var renderDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-                var captureDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia);
+                var renderDevice = GetRenderDevice(enumerator, speakerDeviceId);
+                var captureDevice = GetCaptureDevice(enumerator, micDeviceId);
 
                 if (renderDevice == null || captureDevice == null)
                 {

@@ -45,6 +45,7 @@ public interface IRecordingEngine : IDisposable
 
     bool IsAudioMonitoringEnabled { get; }
     void SetAudioMonitoring(bool enabled, AudioMonitorMode mode, double volume);
+    void SetSelectedAudioDevices(string? speakerDeviceId, string? micDeviceId);
 }
 
 public class RecordingEngine : IRecordingEngine
@@ -109,6 +110,12 @@ public class RecordingEngine : IRecordingEngine
     public void SetAudioMonitoring(bool enabled, AudioMonitorMode mode, double volume)
     {
         _audioRecorder.SetMonitoring(enabled, mode, (float)(volume / 100.0));
+    }
+
+    public void SetSelectedAudioDevices(string? speakerDeviceId, string? micDeviceId)
+    {
+        _audioRecorder.SetSelectedDevices(speakerDeviceId, micDeviceId);
+        _audioMonitor.UpdateSelectedDevices(speakerDeviceId, micDeviceId);
     }
 
     private bool _monitorMicEcho = false;
@@ -281,7 +288,9 @@ public class RecordingEngine : IRecordingEngine
                 config.MicReverbRoomSize,
                 config.MicReverbDamping,
                 config.MicReverbWetMix,
-                config.SpeakerAutoDucking
+                config.SpeakerAutoDucking,
+                config.SelectedSpeakerDeviceId,
+                config.SelectedMicrophoneDeviceId
             );
             if (!string.IsNullOrEmpty(audioErr))
             {

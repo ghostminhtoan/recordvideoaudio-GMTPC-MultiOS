@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -23,6 +25,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly IEncoderPipelineService _pipeline;
     private readonly LocalizationService _loc = LocalizationService.Instance;
     private readonly GlobalHotKeyService _hotKeyService;
+    private readonly AudioDeviceManagerService _audioDeviceManager;
     private FloatingMiniBarWindow? _miniBarWindow;
 
     public MainViewModel()
@@ -122,6 +125,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         UpdateTranslations();
         UpdateHotKeys();
         RefreshCommandPreview();
+
+        // Audio Device Management & Dynamic Hotplug Tracing
+        _audioDeviceManager = new AudioDeviceManagerService();
+        _audioDeviceManager.DevicesRefreshed += OnAudioDevicesRefreshed;
+        _audioDeviceManager.DeviceHotplugTraceLogged += OnDeviceHotplugTraceLogged;
+        InitializeAudioDevices();
     }
 
     #region Properties
@@ -287,6 +296,24 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     private int systemAudioVolume = 100;
+
+    [ObservableProperty]
+    private ObservableCollection<AudioDeviceInfo> availableSpeakerDevices = new();
+
+    [ObservableProperty]
+    private AudioDeviceInfo? selectedSpeakerDevice;
+
+    [ObservableProperty]
+    private ObservableCollection<AudioDeviceInfo> availableMicrophoneDevices = new();
+
+    [ObservableProperty]
+    private AudioDeviceInfo? selectedMicrophoneDevice;
+
+    [ObservableProperty]
+    private string audioDeviceNotificationMessage = string.Empty;
+
+    [ObservableProperty]
+    private bool hasAudioDeviceNotification = false;
 
     [ObservableProperty]
     private double systemAudioLevel = 0;
@@ -1214,7 +1241,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         try
         {
-            var res = await _latencyDetector.CalibrateWithPulseAsync();
+            var res = await _latencyDetector.CalibrateWithPulseAsync(SelectedSpeakerDevice?.Id, SelectedMicrophoneDevice?.Id);
             if (res.HasValue)
             {
                 DetectedLatencyMs = res.Value;
@@ -1237,15 +1264,99 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
+    private void InitializeAudioDevices()
+    {
+        try
+        {
+            var (speakers, mics) = _audioDeviceManager.GetDevices();
+            AvailableSpeakerDevices = new ObservableCollection<AudioDeviceInfo>(speakers);
+            AvailableMicrophoneDevices = new ObservableCollection<AudioDeviceInfo>(mics);
+
+            SelectedSpeakerDevice = AvailableSpeakerDevices.FirstOrDefault(s => s.IsDefault) ?? AvailableSpeakerDevices.FirstOrDefault();
+            SelectedMicrophoneDevice = AvailableMicrophoneDevices.FirstOrDefault(m => m.IsDefault) ?? AvailableMicrophoneDevices.FirstOrDefault();
+
+            _engine.SetSelectedAudioDevices(SelectedSpeakerDevice?.Id, SelectedMicrophoneDevice?.Id);
+            RefreshActiveAudioDevicesInfo();
+        }
+        catch { }
+    }
+
+    private Avalonia.Threading.DispatcherTimer? _deviceNotificationTimer;
+
+    private void OnDeviceHotplugTraceLogged(string message)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            AudioDeviceNotificationMessage = message;
+            HasAudioDeviceNotification = true;
+
+            _deviceNotificationTimer?.Stop();
+            _deviceNotificationTimer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+            _deviceNotificationTimer.Tick += (s, e) =>
+            {
+                HasAudioDeviceNotification = false;
+                _deviceNotificationTimer?.Stop();
+                _deviceNotificationTimer = null;
+            };
+            _deviceNotificationTimer.Start();
+        });
+    }
+
+    private void OnAudioDevicesRefreshed(List<AudioDeviceInfo> speakers, List<AudioDeviceInfo> mics)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            string currentSpeakerId = SelectedSpeakerDevice?.Id ?? "default";
+            string currentMicId = SelectedMicrophoneDevice?.Id ?? "default";
+
+            AvailableSpeakerDevices.Clear();
+            foreach (var s in speakers) AvailableSpeakerDevices.Add(s);
+
+            AvailableMicrophoneDevices.Clear();
+            foreach (var m in mics) AvailableMicrophoneDevices.Add(m);
+
+            SelectedSpeakerDevice = AvailableSpeakerDevices.FirstOrDefault(s => string.Equals(s.Id, currentSpeakerId, StringComparison.OrdinalIgnoreCase))
+                                    ?? AvailableSpeakerDevices.FirstOrDefault(s => s.IsDefault)
+                                    ?? AvailableSpeakerDevices.FirstOrDefault();
+
+            SelectedMicrophoneDevice = AvailableMicrophoneDevices.FirstOrDefault(m => string.Equals(m.Id, currentMicId, StringComparison.OrdinalIgnoreCase))
+                                       ?? AvailableMicrophoneDevices.FirstOrDefault(m => m.IsDefault)
+                                       ?? AvailableMicrophoneDevices.FirstOrDefault();
+
+            _engine.SetSelectedAudioDevices(SelectedSpeakerDevice?.Id, SelectedMicrophoneDevice?.Id);
+            RefreshActiveAudioDevicesInfo();
+        });
+    }
+
+    partial void OnSelectedSpeakerDeviceChanged(AudioDeviceInfo? value)
+    {
+        _engine.SetSelectedAudioDevices(SelectedSpeakerDevice?.Id, SelectedMicrophoneDevice?.Id);
+        RefreshActiveAudioDevicesInfo();
+    }
+
+    partial void OnSelectedMicrophoneDeviceChanged(AudioDeviceInfo? value)
+    {
+        _engine.SetSelectedAudioDevices(SelectedSpeakerDevice?.Id, SelectedMicrophoneDevice?.Id);
+        RefreshActiveAudioDevicesInfo();
+    }
+
+    [RelayCommand]
+    public void RefreshAudioDevices()
+    {
+        _audioDeviceManager.RefreshDevices();
+        RefreshActiveAudioDevicesInfo();
+    }
+
     [RelayCommand]
     public void RefreshActiveAudioDevices()
     {
+        _audioDeviceManager.RefreshDevices();
         RefreshActiveAudioDevicesInfo();
     }
 
     public void RefreshActiveAudioDevicesInfo()
     {
-        var (render, capture) = _latencyDetector.GetActiveDeviceNames();
+        var (render, capture) = _latencyDetector.GetActiveDeviceNames(SelectedSpeakerDevice?.Id, SelectedMicrophoneDevice?.Id);
         ActiveAudioDevicesInfo = $"🎧 Thiết bị phát: {render}   |   🎙️ Micro: {capture}";
     }
 
@@ -1268,7 +1379,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
         LiveHoldButtonText = "🔴 ĐANG THU ÂM (0.0s)... GIỮ CHUỘT!";
 
-        bool started = _latencyDetector.StartLiveHoldCapture(target, IsPlayMetronomeGuideEnabled);
+        bool started = _latencyDetector.StartLiveHoldCapture(target, IsPlayMetronomeGuideEnabled, SelectedSpeakerDevice?.Id, SelectedMicrophoneDevice?.Id);
         if (!started)
         {
             IsDetectingLatency = false;
@@ -1518,8 +1629,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             DrawMouse = DrawMouse,
             RecordSystemAudio = SystemAudioEnabled,
             SystemAudioVolume = SystemAudioVolume,
+            SelectedSpeakerDeviceId = SelectedSpeakerDevice?.Id ?? string.Empty,
             RecordMicrophone = MicAudioEnabled,
             MicrophoneVolume = MicAudioVolume,
+            SelectedMicrophoneDeviceId = SelectedMicrophoneDevice?.Id ?? string.Empty,
             SpeakerTrack1 = SpeakerTrack1,
             SpeakerTrack2 = SpeakerTrack2,
             SpeakerTrack3 = SpeakerTrack3,
@@ -1860,6 +1973,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         try { _liveHoldTimer?.Stop(); } catch { }
+        try { _deviceNotificationTimer?.Stop(); } catch { }
+        try { _audioDeviceManager.Dispose(); } catch { }
         try { _hotKeyService.Dispose(); } catch { }
         try { _engine.Dispose(); } catch { }
         try { _latencyDetector.Dispose(); } catch { }

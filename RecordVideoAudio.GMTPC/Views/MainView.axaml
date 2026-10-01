@@ -363,6 +363,17 @@
                                 </Border>
                             </Grid>
 
+                            <!-- Hotplug Device Notification Banner -->
+                            <Border Background="#2A1B0A" BorderBrush="#FFB800" BorderThickness="1.5" CornerRadius="6"
+                                    Padding="10,6" IsVisible="{Binding HasAudioDeviceNotification}">
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <TextBlock Text="⚡ THIẾT BỊ ÂM THANH:" FontSize="10" FontWeight="Bold" Foreground="#FFB800" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBlock Grid.Column="1" Text="{Binding AudioDeviceNotificationMessage}" FontSize="10" FontWeight="SemiBold" Foreground="#FFFFFF" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                    <Button Grid.Column="2" Content="🔄 Quét lại" Command="{Binding RefreshAudioDevicesCommand}"
+                                            Background="#1E293B" Foreground="#FFB800" Padding="6,2" FontSize="9" CornerRadius="4" />
+                                </Grid>
+                            </Border>
+
                             <!-- Channel 1: System Audio Loopback -->
                             <Border Background="#0D1322" CornerRadius="8" Padding="10" BorderBrush="#1F2D4A" BorderThickness="1">
                                 <StackPanel Spacing="6">
@@ -372,6 +383,18 @@
                                         <TextBlock Grid.Column="1" Text="{Binding SystemAudioVolume, StringFormat='{}{0}%'}" 
                                                    FontSize="11" FontWeight="Bold" Foreground="#00F0FF" />
                                     </Grid>
+
+                                    <!-- Speaker / Output Device Selector -->
+                                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,1,0,2">
+                                        <TextBlock Text="🔊 Thiết bị phát:" FontSize="10" Foreground="#A0AEC0" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <ComboBox Grid.Column="1" ItemsSource="{Binding AvailableSpeakerDevices}"
+                                                  SelectedItem="{Binding SelectedSpeakerDevice}"
+                                                  Height="26" FontSize="10" HorizontalAlignment="Stretch" />
+                                        <Button Grid.Column="2" Content="🔄" Command="{Binding RefreshAudioDevicesCommand}"
+                                                Background="Transparent" Foreground="#64B5F6" Padding="4,2" Margin="4,0,0,0"
+                                                ToolTip.Tip="Quét và làm mới danh sách thiết bị âm thanh" />
+                                    </Grid>
+
                                     <Slider Minimum="0" Maximum="100" Value="{Binding SystemAudioVolume}" IsEnabled="{Binding SystemAudioEnabled}" />
                                     <!-- VU Meter Bar -->
                                     <ProgressBar Minimum="0" Maximum="100" Value="{Binding SystemAudioLevel}" Height="6"
@@ -439,6 +462,18 @@
                                         <TextBlock Grid.Column="1" Text="{Binding MicAudioVolume, StringFormat='{}{0}%'}" 
                                                    FontSize="11" FontWeight="Bold" Foreground="#FFB800" />
                                     </Grid>
+
+                                    <!-- Microphone / Input Device Selector -->
+                                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,1,0,2">
+                                        <TextBlock Text="🎙️ Thiết bị thu:" FontSize="10" Foreground="#A0AEC0" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <ComboBox Grid.Column="1" ItemsSource="{Binding AvailableMicrophoneDevices}"
+                                                  SelectedItem="{Binding SelectedMicrophoneDevice}"
+                                                  Height="26" FontSize="10" HorizontalAlignment="Stretch" />
+                                        <Button Grid.Column="2" Content="🔄" Command="{Binding RefreshAudioDevicesCommand}"
+                                                Background="Transparent" Foreground="#64B5F6" Padding="4,2" Margin="4,0,0,0"
+                                                ToolTip.Tip="Quét và làm mới danh sách thiết bị âm thanh" />
+                                    </Grid>
+
                                     <Slider Minimum="0" Maximum="100" Value="{Binding MicAudioVolume}" IsEnabled="{Binding MicAudioEnabled}" />
                                     <!-- VU Meter Bar -->
                                     <ProgressBar Minimum="0" Maximum="100" Value="{Binding MicAudioLevel}" Height="6"

@@ -35,8 +35,10 @@ public class RecordingConfig
     // Audio Mixer settings
     public bool RecordSystemAudio { get; set; } = true;
     public int SystemAudioVolume { get; set; } = 100; // 0 - 100%
+    public string SelectedSpeakerDeviceId { get; set; } = string.Empty; // Empty or "default" = System Default
     public bool RecordMicrophone { get; set; } = true;
     public int MicrophoneVolume { get; set; } = 90;   // 0 - 100%
+    public string SelectedMicrophoneDeviceId { get; set; } = string.Empty; // Empty or "default" = System Default
     public AudioTrackMode AudioTrackMode { get; set; } = AudioTrackMode.MixToSingleTrack;
 
     // Audio Processing: Sync Offset (Delay in ms) & Gain (dB)

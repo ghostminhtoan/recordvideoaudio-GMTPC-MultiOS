@@ -32,23 +32,45 @@ public class RealtimeAudioMonitor : IDisposable
     }
 
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    private void InitWindowsDevices()
+    private void InitWindowsDevices(string? speakerDeviceId = null, string? micDeviceId = null)
     {
-        _enumerator = new MMDeviceEnumerator();
+        _enumerator ??= new MMDeviceEnumerator();
         
         try
         {
-            _speakerDevice = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            _speakerDevice?.Dispose();
+            _speakerDevice = null;
+            if (!string.IsNullOrEmpty(speakerDeviceId) && speakerDeviceId != "default")
+            {
+                try { _speakerDevice = _enumerator.GetDevice(speakerDeviceId); } catch { }
+            }
+            _speakerDevice ??= _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
         }
         catch { }
 
         try
         {
-            _micDevice = _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia);
+            _micDevice?.Dispose();
+            _micDevice = null;
+            if (!string.IsNullOrEmpty(micDeviceId) && micDeviceId != "default")
+            {
+                try { _micDevice = _enumerator.GetDevice(micDeviceId); } catch { }
+            }
+            _micDevice ??= _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia);
         }
         catch { }
 
         _initialized = true;
+    }
+
+    public void UpdateSelectedDevices(string? speakerDeviceId, string? micDeviceId)
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return;
+        try
+        {
+            InitWindowsDevices(speakerDeviceId, micDeviceId);
+        }
+        catch { }
     }
 
     public (double speakerLevel, double micLevel) GetCurrentLevels(bool speakerEnabled, double speakerVolume, bool micEnabled, double micVolume)

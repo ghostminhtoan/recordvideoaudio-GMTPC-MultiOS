@@ -39,6 +39,61 @@ public class WasapiAudioRecorder : IDisposable
     private volatile bool _speakerAutoDucking = false;
     private float _currentDuckingGain = 1.0f;
 
+    private volatile string _speakerDeviceId = string.Empty;
+    private volatile string _micDeviceId = string.Empty;
+
+    public void SetSelectedDevices(string? speakerDeviceId, string? micDeviceId)
+    {
+        _speakerDeviceId = speakerDeviceId ?? string.Empty;
+        _micDeviceId = micDeviceId ?? string.Empty;
+
+        if (_isMonitoring && !IsRecording)
+        {
+            try
+            {
+                StopStandaloneRecorders();
+                if (_monitorPlayer != null)
+                {
+                    _monitorPlayer.Stop();
+                    _monitorPlayer.Dispose();
+                    _monitorPlayer = null;
+                }
+                StartMonitoring();
+            }
+            catch { }
+        }
+    }
+
+    private MMDevice? GetRenderDevice(MMDeviceEnumerator enumerator)
+    {
+        if (!string.IsNullOrEmpty(_speakerDeviceId) && _speakerDeviceId != "default")
+        {
+            try
+            {
+                var dev = enumerator.GetDevice(_speakerDeviceId);
+                if (dev != null && dev.State == DeviceState.Active)
+                    return dev;
+            }
+            catch { }
+        }
+        return enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+    }
+
+    private MMDevice? GetCaptureDevice(MMDeviceEnumerator enumerator)
+    {
+        if (!string.IsNullOrEmpty(_micDeviceId) && _micDeviceId != "default")
+        {
+            try
+            {
+                var dev = enumerator.GetDevice(_micDeviceId);
+                if (dev != null && dev.State == DeviceState.Active)
+                    return dev;
+            }
+            catch { }
+        }
+        return enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia);
+    }
+
     private volatile bool _recordMic = true;
     private volatile float _micVolume = 0.9f;
     private volatile float _micGainDb = 0.0f;
@@ -282,7 +337,7 @@ public class WasapiAudioRecorder : IDisposable
         try
         {
             using var enumerator = new MMDeviceEnumerator();
-            var renderDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            var renderDevice = GetRenderDevice(enumerator);
             if (renderDevice == null) return;
 
             using var client = renderDevice.CreateAudioClient();
@@ -333,7 +388,7 @@ public class WasapiAudioRecorder : IDisposable
         try
         {
             using var enumerator = new MMDeviceEnumerator();
-            var captureDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia);
+            var captureDevice = GetCaptureDevice(enumerator);
             if (captureDevice == null) return;
 
             _micRecorder = new WasapiRecorderBuilder()
@@ -384,7 +439,7 @@ public class WasapiAudioRecorder : IDisposable
         try
         {
             using var enumerator = new MMDeviceEnumerator();
-            var renderDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            var renderDevice = GetRenderDevice(enumerator);
             if (renderDevice == null) return;
 
             _loopbackRecorder = new WasapiRecorderBuilder()
@@ -499,10 +554,14 @@ public class WasapiAudioRecorder : IDisposable
         string outDir,
         bool micEcho = false, int micEchoDelayMs = 220, double micEchoFeedback = 35.0, double micEchoWetMix = 30.0,
         bool micReverb = false, double micReverbRoomSize = 50.0, double micReverbDamping = 40.0, double micReverbWetMix = 25.0,
-        bool speakerAutoDucking = false)
+        bool speakerAutoDucking = false,
+        string? speakerDeviceId = null, string? micDeviceId = null)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             return null;
+
+        if (speakerDeviceId != null) _speakerDeviceId = speakerDeviceId;
+        if (micDeviceId != null) _micDeviceId = micDeviceId;
 
         StopRecording();
 
@@ -532,7 +591,7 @@ public class WasapiAudioRecorder : IDisposable
             {
                 try
                 {
-                    var renderDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                    var renderDevice = GetRenderDevice(enumerator);
                     if (renderDevice != null)
                     {
                         _loopbackPath = Path.Combine(outDir, $"temp_speaker_{Guid.NewGuid():N}.wav");
@@ -592,7 +651,7 @@ public class WasapiAudioRecorder : IDisposable
             {
                 try
                 {
-                    var captureDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia);
+                    var captureDevice = GetCaptureDevice(enumerator);
                     if (captureDevice != null)
                     {
                         _micPath = Path.Combine(outDir, $"temp_mic_{Guid.NewGuid():N}.wav");
