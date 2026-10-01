@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using RecordVideoAudio.GMTPC.Models;
@@ -10,13 +12,13 @@ namespace RecordVideoAudio.GMTPC.Services;
 public class WasapiAudioRecorder : IDisposable
 {
     private WasapiRecorder? _loopbackRecorder;
-    private WaveFileWriter? _loopbackWriter;
+    private AsyncAudioWriter? _loopbackWriter;
     private string? _loopbackPath;
 
     private WasapiPlayer? _silencePlayer;
 
     private WasapiRecorder? _micRecorder;
-    private WaveFileWriter? _micWriter;
+    private AsyncAudioWriter? _micWriter;
     private string? _micPath;
 
     // Real-time Audio Configuration (Thread-Safe volatile)
@@ -58,18 +60,19 @@ public class WasapiAudioRecorder : IDisposable
     private int _lastSampleRate = 0;
     private float _hpB0 = 1.0f, _hpB1 = 0.0f, _hpB2 = 0.0f, _hpA1 = 0.0f, _hpA2 = 0.0f;
 
-    // Adaptive Noise Suppression Floor & Envelope Follower State
-    private float _micSignalEnvelope = 0.0f;
+    // Adaptive Smooth Denoise & Envelope State (Anti-chattering)
+    private float _micVoiceEnvelope = 0.0f;
     private float _micNoiseFloor = 0.005f; // Initial estimate ~ -46 dB
+    private float _denoiseGainSmoothed = 1.0f;
 
-    // Noise Gate Envelope State
+    // Smooth Noise Gate State (Long Hold to prevent word cutting)
     private float _micGateGain = 1.0f;
     private int _micGateHoldCounter = 0;
 
     // Dynamic Compressor State
     private float _compEnvelope = 0.0f;
     private const float CompAttackCoeff = 0.85f;
-    private const float CompReleaseCoeff = 0.9992f;
+    private const float CompReleaseCoeff = 0.9995f;
 
     // 3-Band Vocal EQ Biquad State (Warmth, Clarity, Air)
     private readonly float[] _eq1X1 = new float[8];
@@ -98,7 +101,8 @@ public class WasapiAudioRecorder : IDisposable
     private float _deEsserGain = 1.0f;
 
     // Real-Time Pitch Shifter & Auto-Tune Engine (Granular Delay-Line Crossfade)
-    private readonly float[] _pitchDelayBuffer = new float[4096];
+    private readonly float[] _pitchDelayBufferCh0 = new float[4096];
+    private readonly float[] _pitchDelayBufferCh1 = new float[4096];
     private int _pitchWritePos = 0;
     private float _pitchReadPos1 = 0.0f;
     private float _pitchReadPos2 = 1024.0f;
@@ -244,7 +248,8 @@ public class WasapiAudioRecorder : IDisposable
                             .WithLoopbackCapture()
                             .Build();
 
-                        _loopbackWriter = new WaveFileWriter(_loopbackPath, _loopbackRecorder.WaveFormat);
+                        // Use lock-free background audio writer to avoid I/O disk stuttering
+                        _loopbackWriter = new AsyncAudioWriter(_loopbackPath, _loopbackRecorder.WaveFormat);
 
                         _loopbackRecorder.DataAvailable += (ReadOnlySpan<byte> buffer, AudioClientBufferFlags flags, long devicePosition, long qpcPosition) =>
                         {
@@ -263,7 +268,7 @@ public class WasapiAudioRecorder : IDisposable
                                     var fmt = _loopbackRecorder.WaveFormat;
                                     ProcessSpeakerData(workSpan, fmt.BitsPerSample);
 
-                                    _loopbackWriter.Write(workSpan);
+                                    _loopbackWriter.Enqueue(workSpan);
                                 }
                             }
                             catch { }
@@ -271,11 +276,11 @@ public class WasapiAudioRecorder : IDisposable
 
                         _loopbackRecorder.StartRecording();
 
-                        // Keep Windows Audio Engine active during silence using lightweight SilenceProvider
+                        // Keep Windows Audio Engine continuously running using inaudible active keep-alive stream
                         try
                         {
                             var silenceFormat = _loopbackRecorder.WaveFormat;
-                            var silenceProvider = new SilenceProvider(silenceFormat);
+                            var silenceProvider = new KeepAliveSilenceProvider(silenceFormat);
                             _silencePlayer = new WasapiPlayerBuilder()
                                 .WithDevice(renderDevice)
                                 .Build();
@@ -302,7 +307,8 @@ public class WasapiAudioRecorder : IDisposable
                             .WithDevice(captureDevice)
                             .Build();
 
-                        _micWriter = new WaveFileWriter(_micPath, _micRecorder.WaveFormat);
+                        // Use lock-free background audio writer to eliminate audio dropouts
+                        _micWriter = new AsyncAudioWriter(_micPath, _micRecorder.WaveFormat);
 
                         _micRecorder.DataAvailable += (ReadOnlySpan<byte> buffer, AudioClientBufferFlags flags, long devicePosition, long qpcPosition) =>
                         {
@@ -321,7 +327,7 @@ public class WasapiAudioRecorder : IDisposable
                                     var fmt = _micRecorder.WaveFormat;
                                     ProcessMicData(workSpan, fmt.BitsPerSample, fmt.Channels, fmt.SampleRate);
 
-                                    _micWriter.Write(workSpan);
+                                    _micWriter.Enqueue(workSpan);
                                 }
                             }
                             catch { }
@@ -366,7 +372,8 @@ public class WasapiAudioRecorder : IDisposable
         Array.Clear(_eq3Y1, 0, _eq3Y1.Length);
         Array.Clear(_eq3Y2, 0, _eq3Y2.Length);
 
-        Array.Clear(_pitchDelayBuffer, 0, _pitchDelayBuffer.Length);
+        Array.Clear(_pitchDelayBufferCh0, 0, _pitchDelayBufferCh0.Length);
+        Array.Clear(_pitchDelayBufferCh1, 0, _pitchDelayBufferCh1.Length);
         _pitchWritePos = 0;
         _pitchReadPos1 = 0.0f;
         _pitchReadPos2 = 1024.0f;
@@ -375,8 +382,9 @@ public class WasapiAudioRecorder : IDisposable
 
         _lastSampleRate = 0;
         _lastEqSampleRate = 0;
-        _micSignalEnvelope = 0.0f;
+        _micVoiceEnvelope = 0.0f;
         _micNoiseFloor = 0.005f;
+        _denoiseGainSmoothed = 1.0f;
         _micGateGain = 1.0f;
         _micGateHoldCounter = 0;
         _compEnvelope = 0.0f;
@@ -522,17 +530,17 @@ public class WasapiAudioRecorder : IDisposable
 
         _pitchTrackCount = 0;
 
-        // Autocorrelation pitch detection (Range 75Hz - 550Hz)
-        int minLag = Math.Max(1, sampleRate / 550);
-        int maxLag = Math.Min(_pitchTrackBuffer.Length - 1, sampleRate / 75);
+        // Sub-sampled autocorrelation pitch detection (Range 80Hz - 480Hz)
+        int minLag = Math.Max(1, sampleRate / 480);
+        int maxLag = Math.Min(_pitchTrackBuffer.Length - 1, sampleRate / 80);
 
         float maxCorr = 0.0f;
         int bestLag = -1;
 
-        for (int lag = minLag; lag <= maxLag; lag++)
+        for (int lag = minLag; lag <= maxLag; lag += 2)
         {
             float corr = 0.0f;
-            for (int i = 0; i < _pitchTrackBuffer.Length - lag; i++)
+            for (int i = 0; i < 256; i += 2)
             {
                 corr += _pitchTrackBuffer[i] * _pitchTrackBuffer[i + lag];
             }
@@ -544,10 +552,10 @@ public class WasapiAudioRecorder : IDisposable
             }
         }
 
-        if (bestLag > 0 && maxCorr > 0.01f)
+        if (bestLag > 0 && maxCorr > 0.005f)
         {
             float detectedFreq = (float)sampleRate / bestLag;
-            if (detectedFreq >= 75.0f && detectedFreq <= 550.0f)
+            if (detectedFreq >= 80.0f && detectedFreq <= 480.0f)
             {
                 float midiNote = 69.0f + 12.0f * MathF.Log2(detectedFreq / 440.0f);
                 float targetMidi = QuantizeToScale(midiNote, _micAutoTuneKey, _micAutoTuneScale);
@@ -555,12 +563,10 @@ public class WasapiAudioRecorder : IDisposable
 
                 if (_micAutoTuneSpeed <= 8)
                 {
-                    // Travis Scott / Hard Robot Instant Tune
                     _smoothedAutoTuneShift = diff;
                 }
                 else
                 {
-                    // Smooth natural retuning
                     float alpha = Math.Clamp(1.0f - (_micAutoTuneSpeed / 100.0f) * 0.9f, 0.05f, 0.95f);
                     _smoothedAutoTuneShift = _smoothedAutoTuneShift * (1.0f - alpha) + diff * alpha;
                 }
@@ -634,38 +640,44 @@ public class WasapiAudioRecorder : IDisposable
 
         float absVal = MathF.Abs(val);
 
-        // 2. Adaptive Noise Suppression (Spectral Subtraction / Expander)
+        // Track voice envelope with smooth attack and release
+        _micVoiceEnvelope = _micVoiceEnvelope * 0.9992f + absVal * 0.0008f;
+
+        // 2. Adaptive Smooth Denoise (Time-smoothed attenuation to eliminate stutter / chattering)
         if (_micNoiseSuppression)
         {
-            _micSignalEnvelope = MathF.Max(absVal, _micSignalEnvelope * 0.999f);
-
-            if (_micSignalEnvelope < _micNoiseFloor)
+            if (_micVoiceEnvelope < _micNoiseFloor)
             {
-                _micNoiseFloor = _micNoiseFloor * 0.99f + _micSignalEnvelope * 0.01f;
+                _micNoiseFloor = _micNoiseFloor * 0.995f + _micVoiceEnvelope * 0.005f;
             }
             else
             {
-                _micNoiseFloor = _micNoiseFloor * 0.99995f + _micSignalEnvelope * 0.00005f;
+                _micNoiseFloor = _micNoiseFloor * 0.99998f + _micVoiceEnvelope * 0.00002f;
             }
 
             _micNoiseFloor = Math.Clamp(_micNoiseFloor, 0.0001f, 0.05f);
 
-            float snr = _micSignalEnvelope / _micNoiseFloor;
-            if (snr < 2.5f)
+            float snr = _micVoiceEnvelope / _micNoiseFloor;
+            float targetAtten = 1.0f;
+            if (snr < 2.0f)
             {
-                float atten = Math.Clamp((snr - 1.0f) / 1.5f, 0.10f, 1.0f);
-                val *= atten;
+                // Maximum 8dB attenuation with smooth knee to preserve speech tails
+                targetAtten = Math.Clamp(snr / 2.0f, 0.40f, 1.0f);
             }
+
+            // Smooth attenuation coefficient across 50ms to eliminate abrupt cutting
+            _denoiseGainSmoothed = _denoiseGainSmoothed * 0.996f + targetAtten * 0.004f;
+            val *= _denoiseGainSmoothed;
         }
 
-        // 3. Noise Gate (Attack/Hold/Release)
+        // 3. Smooth Noise Gate (Long 350ms Hold Time to prevent cutting off words)
         if (_micNoiseGate)
         {
             float gateLinear = MathF.Pow(10.0f, _micNoiseGateThresholdDb / 20.0f);
-            if (absVal > gateLinear)
+            if (_micVoiceEnvelope > gateLinear)
             {
-                _micGateGain = MathF.Min(1.0f, _micGateGain + 0.05f);
-                _micGateHoldCounter = (int)(0.08f * sampleRate);
+                _micGateGain = MathF.Min(1.0f, _micGateGain + 0.02f);
+                _micGateHoldCounter = (int)(0.35f * sampleRate); // 350ms Hold
             }
             else
             {
@@ -675,7 +687,7 @@ public class WasapiAudioRecorder : IDisposable
                 }
                 else
                 {
-                    _micGateGain = MathF.Max(0.0f, _micGateGain - 0.002f);
+                    _micGateGain = MathF.Max(0.0f, _micGateGain - 0.0005f); // 250ms smooth release
                 }
             }
             val *= _micGateGain;
@@ -684,15 +696,14 @@ public class WasapiAudioRecorder : IDisposable
         // 4. De-Esser (Triệt âm xì, chói tai quanh 7kHz)
         if (_micDeEsser)
         {
-            // Sibilance frequency detection
             _sibilanceEnvelope = MathF.Max(absVal, _sibilanceEnvelope * 0.998f);
             if (_sibilanceEnvelope > 0.15f && absVal > 0.12f)
             {
-                _deEsserGain = MathF.Max(0.55f, _deEsserGain - 0.02f); // -5.2 dB attenuation
+                _deEsserGain = MathF.Max(0.60f, _deEsserGain - 0.01f);
             }
             else
             {
-                _deEsserGain = MathF.Min(1.0f, _deEsserGain + 0.005f);
+                _deEsserGain = MathF.Min(1.0f, _deEsserGain + 0.003f);
             }
             val *= _deEsserGain;
         }
@@ -745,33 +756,39 @@ public class WasapiAudioRecorder : IDisposable
         }
 
         // 7. Auto-Tune & Pitch Shifting (Granular Dual-Pointer Delay-Line)
-        float autoTuneShift = _micAutoTune ? DetectPitchAndCalculateCorrection(val, sampleRate) : 0.0f;
-        float totalShiftSemitones = autoTuneShift + _micPitchShiftSemitones;
-
-        if (MathF.Abs(totalShiftSemitones) >= 0.1f)
+        if (_micAutoTune || _micPitchShiftSemitones != 0)
         {
-            float pitchRatio = MathF.Pow(2.0f, totalShiftSemitones / 12.0f);
+            float autoTuneShift = _micAutoTune ? DetectPitchAndCalculateCorrection(val, sampleRate) : 0.0f;
+            float totalShiftSemitones = autoTuneShift + _micPitchShiftSemitones;
 
-            _pitchDelayBuffer[_pitchWritePos] = val;
+            if (MathF.Abs(totalShiftSemitones) >= 0.1f)
+            {
+                float pitchRatio = MathF.Pow(2.0f, totalShiftSemitones / 12.0f);
 
-            float phase1 = (_pitchWritePos - _pitchReadPos1 + 4096) % 4096;
-            float phase2 = (_pitchWritePos - _pitchReadPos2 + 4096) % 4096;
+                float[] delayBuf = (ch % 2 == 0) ? _pitchDelayBufferCh0 : _pitchDelayBufferCh1;
+                delayBuf[_pitchWritePos] = val;
 
-            float w1 = 1.0f - MathF.Abs(2.0f * (phase1 / PitchWindowSize) - 1.0f);
-            float w2 = 1.0f - MathF.Abs(2.0f * (phase2 / PitchWindowSize) - 1.0f);
+                float phase1 = (_pitchWritePos - _pitchReadPos1 + 4096) % 4096;
+                float phase2 = (_pitchWritePos - _pitchReadPos2 + 4096) % 4096;
 
-            w1 = Math.Clamp(w1, 0.0f, 1.0f);
-            w2 = Math.Clamp(w2, 0.0f, 1.0f);
+                float w1 = 1.0f - MathF.Abs(2.0f * (phase1 / PitchWindowSize) - 1.0f);
+                float w2 = 1.0f - MathF.Abs(2.0f * (phase2 / PitchWindowSize) - 1.0f);
 
-            float s1 = InterpolateDelay(_pitchDelayBuffer, _pitchReadPos1);
-            float s2 = InterpolateDelay(_pitchDelayBuffer, _pitchReadPos2);
+                w1 = Math.Clamp(w1, 0.0f, 1.0f);
+                w2 = Math.Clamp(w2, 0.0f, 1.0f);
 
-            val = s1 * w1 + s2 * w2;
+                float s1 = InterpolateDelay(delayBuf, _pitchReadPos1);
+                float s2 = InterpolateDelay(delayBuf, _pitchReadPos2);
 
-            _pitchReadPos1 = (_pitchReadPos1 + pitchRatio) % 4096;
-            _pitchReadPos2 = (_pitchReadPos2 + pitchRatio) % 4096;
+                val = s1 * w1 + s2 * w2;
 
-            _pitchWritePos = (_pitchWritePos + 1) % 4096;
+                if (ch % 2 == 0)
+                {
+                    _pitchReadPos1 = (_pitchReadPos1 + pitchRatio) % 4096;
+                    _pitchReadPos2 = (_pitchReadPos2 + pitchRatio) % 4096;
+                    _pitchWritePos = (_pitchWritePos + 1) % 4096;
+                }
+            }
         }
 
         // 8. Gain (-50 dB to +50 dB) and Volume
@@ -852,7 +869,6 @@ public class WasapiAudioRecorder : IDisposable
         {
             if (_loopbackWriter != null)
             {
-                _loopbackWriter.Flush();
                 _loopbackWriter.Dispose();
                 _loopbackWriter = null;
             }
@@ -875,7 +891,6 @@ public class WasapiAudioRecorder : IDisposable
         {
             if (_micWriter != null)
             {
-                _micWriter.Flush();
                 _micWriter.Dispose();
                 _micWriter = null;
             }
@@ -897,5 +912,110 @@ public class WasapiAudioRecorder : IDisposable
     public void Dispose()
     {
         StopRecording();
+    }
+
+    /// <summary>
+    /// Thread-safe, non-blocking asynchronous audio writer to prevent disk I/O bottlenecks and audio dropouts.
+    /// </summary>
+    private sealed class AsyncAudioWriter : IDisposable
+    {
+        private readonly WaveFileWriter _writer;
+        private readonly BlockingCollection<(byte[] data, int length)> _queue = new(500);
+        private readonly Thread _workerThread;
+        private volatile bool _isRunning = true;
+
+        public AsyncAudioWriter(string path, WaveFormat format)
+        {
+            _writer = new WaveFileWriter(path, format);
+            _workerThread = new Thread(WorkerLoop)
+            {
+                IsBackground = true,
+                Priority = ThreadPriority.AboveNormal,
+                Name = $"AsyncAudioWriter_{Path.GetFileNameWithoutExtension(path)}"
+            };
+            _workerThread.Start();
+        }
+
+        public void Enqueue(ReadOnlySpan<byte> buffer)
+        {
+            if (!_isRunning || _queue.IsAddingCompleted || buffer.IsEmpty) return;
+            byte[] copy = new byte[buffer.Length];
+            buffer.CopyTo(copy);
+            _queue.TryAdd((copy, buffer.Length));
+        }
+
+        private void WorkerLoop()
+        {
+            while (_isRunning || _queue.Count > 0)
+            {
+                try
+                {
+                    if (_queue.TryTake(out var item, 100))
+                    {
+                        _writer.Write(item.data, 0, item.length);
+                    }
+                }
+                catch { }
+            }
+        }
+
+        public void Dispose()
+        {
+            _isRunning = false;
+            _queue.CompleteAdding();
+            try { _workerThread.Join(3000); } catch { }
+            try { _writer.Flush(); } catch { }
+            try { _writer.Dispose(); } catch { }
+            _queue.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Keep-alive silence provider generating an inaudible dither stream (-100 dBFS) to keep the Windows Audio Engine clock running continuously.
+    /// </summary>
+    private sealed class KeepAliveSilenceProvider : IWaveProvider
+    {
+        private readonly WaveFormat _format;
+        private float _phase = 0;
+
+        public KeepAliveSilenceProvider(WaveFormat format)
+        {
+            _format = format;
+        }
+
+        public WaveFormat WaveFormat => _format;
+
+        public int Read(byte[] buffer, int offset, int count)
+        {
+            return Read(buffer.AsSpan(offset, count));
+        }
+
+        public int Read(Span<byte> buffer)
+        {
+            buffer.Clear();
+            if (_format.BitsPerSample == 32 && _format.Encoding == WaveFormatEncoding.IeeeFloat)
+            {
+                var span = MemoryMarshal.Cast<byte, float>(buffer);
+                for (int i = 0; i < span.Length; i += _format.Channels)
+                {
+                    _phase += 0.001f;
+                    float dither = MathF.Sin(_phase) * 1e-5f; // -100 dBFS inaudible dither
+                    span[i] = dither;
+                    if (_format.Channels > 1) span[i + 1] = dither;
+                }
+            }
+            else if (_format.BitsPerSample == 16)
+            {
+                var span = MemoryMarshal.Cast<byte, short>(buffer);
+                for (int i = 0; i < span.Length; i += _format.Channels)
+                {
+                    _phase += 0.001f;
+                    short dither = (short)(MathF.Sin(_phase) * 1);
+                    span[i] = dither;
+                    if (_format.Channels > 1) span[i + 1] = dither;
+                }
+            }
+            return buffer.Length;
+        }
     }
 }

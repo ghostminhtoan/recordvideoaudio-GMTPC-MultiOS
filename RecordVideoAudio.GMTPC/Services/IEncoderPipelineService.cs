@@ -50,6 +50,9 @@ public class FFmpegPipelineService : IEncoderPipelineService
         string distWin = Path.Combine(baseDir, "..", "..", "..", "..", "dist", "windows", "ffmpeg.exe");
         if (File.Exists(distWin)) return Path.GetFullPath(distWin);
 
+        string winSub = Path.Combine(baseDir, "windows", "ffmpeg.exe");
+        if (File.Exists(winSub)) return winSub;
+
         string userLocal = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         string vibePath = Path.Combine(userLocal, "vibe", "ffmpeg.exe");
         if (File.Exists(vibePath)) return vibePath;
