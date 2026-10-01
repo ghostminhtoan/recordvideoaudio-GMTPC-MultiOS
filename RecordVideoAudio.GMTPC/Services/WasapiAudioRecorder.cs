@@ -100,13 +100,15 @@ public class WasapiAudioRecorder : IDisposable
     private float _sibilanceEnvelope = 0.0f;
     private float _deEsserGain = 1.0f;
 
-    // Real-Time Pitch Shifter & Auto-Tune Engine (Granular Delay-Line Crossfade)
-    private readonly float[] _pitchDelayBufferCh0 = new float[4096];
-    private readonly float[] _pitchDelayBufferCh1 = new float[4096];
+    // Real-Time Pitch Shifter & Auto-Tune Engine (Continuous Phase Overlap-Add)
+    private const int PitchDelayBufferSize = 8192;
+    private const int PitchDelayBufferMask = PitchDelayBufferSize - 1;
+    private const int PitchWindowSize = 1024; // ~21.3ms at 48kHz, optimal grain size for human speech
+    private readonly float[] _pitchDelayBufferCh0 = new float[PitchDelayBufferSize];
+    private readonly float[] _pitchDelayBufferCh1 = new float[PitchDelayBufferSize];
     private int _pitchWritePos = 0;
-    private float _pitchReadPos1 = 0.0f;
-    private float _pitchReadPos2 = 1024.0f;
-    private const int PitchWindowSize = 2048;
+    private float _pitchPhase = 0.0f; // Continuous normalized phase [0..1)
+    private float _smoothedPitchRatio = 1.0f;
 
     // Auto-Tune Tracker State
     private readonly float[] _pitchTrackBuffer = new float[512];
@@ -375,8 +377,8 @@ public class WasapiAudioRecorder : IDisposable
         Array.Clear(_pitchDelayBufferCh0, 0, _pitchDelayBufferCh0.Length);
         Array.Clear(_pitchDelayBufferCh1, 0, _pitchDelayBufferCh1.Length);
         _pitchWritePos = 0;
-        _pitchReadPos1 = 0.0f;
-        _pitchReadPos2 = 1024.0f;
+        _pitchPhase = 0.0f;
+        _smoothedPitchRatio = 1.0f;
         _pitchTrackCount = 0;
         _smoothedAutoTuneShift = 0.0f;
 
@@ -572,6 +574,10 @@ public class WasapiAudioRecorder : IDisposable
                 }
             }
         }
+        else
+        {
+            _smoothedAutoTuneShift *= 0.96f;
+        }
 
         return _smoothedAutoTuneShift;
     }
@@ -612,12 +618,12 @@ public class WasapiAudioRecorder : IDisposable
     private static float InterpolateDelay(float[] buffer, float pos)
     {
         int i0 = (int)pos;
-        int i1 = (i0 + 1) % buffer.Length;
+        int i1 = (i0 + 1) & (buffer.Length - 1);
         float frac = pos - i0;
-        return buffer[i0] * (1.0f - frac) + buffer[i1] * frac;
+        return buffer[i0] + frac * (buffer[i1] - buffer[i0]);
     }
 
-    private float ProcessMicSample(float sample, int ch, int sampleRate)
+    private float ProcessMicSample(float sample, int ch, int channels, int sampleRate)
     {
         float val = sample;
 
@@ -755,40 +761,67 @@ public class WasapiAudioRecorder : IDisposable
             }
         }
 
-        // 7. Auto-Tune & Pitch Shifting (Granular Dual-Pointer Delay-Line)
+        // 7. Auto-Tune & Pitch Shifting (Continuous Phase Overlap-Add - 100% Non-Interrupting)
         if (_micAutoTune || _micPitchShiftSemitones != 0)
         {
             float autoTuneShift = _micAutoTune ? DetectPitchAndCalculateCorrection(val, sampleRate) : 0.0f;
-            float totalShiftSemitones = autoTuneShift + _micPitchShiftSemitones;
+            float targetShiftSemitones = autoTuneShift + _micPitchShiftSemitones;
+            float targetPitchRatio = MathF.Pow(2.0f, Math.Clamp(targetShiftSemitones, -24.0f, 24.0f) / 12.0f);
 
-            if (MathF.Abs(totalShiftSemitones) >= 0.1f)
+            // Smooth pitch ratio to eliminate abrupt step changes and clicking
+            _smoothedPitchRatio = _smoothedPitchRatio * 0.999f + targetPitchRatio * 0.001f;
+
+            if (MathF.Abs(_smoothedPitchRatio - 1.0f) > 0.003f)
             {
-                float pitchRatio = MathF.Pow(2.0f, totalShiftSemitones / 12.0f);
-
                 float[] delayBuf = (ch % 2 == 0) ? _pitchDelayBufferCh0 : _pitchDelayBufferCh1;
                 delayBuf[_pitchWritePos] = val;
 
-                float phase1 = (_pitchWritePos - _pitchReadPos1 + 4096) % 4096;
-                float phase2 = (_pitchWritePos - _pitchReadPos2 + 4096) % 4096;
+                // Tap 0
+                float phase0 = _pitchPhase;
+                float delay0 = phase0 * PitchWindowSize;
+                float readPos0 = _pitchWritePos - delay0;
+                while (readPos0 < 0) readPos0 += PitchDelayBufferSize;
 
-                float w1 = 1.0f - MathF.Abs(2.0f * (phase1 / PitchWindowSize) - 1.0f);
-                float w2 = 1.0f - MathF.Abs(2.0f * (phase2 / PitchWindowSize) - 1.0f);
+                // Tap 1 (shifted by 180 degrees = 0.5 cycle)
+                float phase1 = phase0 + 0.5f;
+                if (phase1 >= 1.0f) phase1 -= 1.0f;
+                float delay1 = phase1 * PitchWindowSize;
+                float readPos1 = _pitchWritePos - delay1;
+                while (readPos1 < 0) readPos1 += PitchDelayBufferSize;
 
-                w1 = Math.Clamp(w1, 0.0f, 1.0f);
-                w2 = Math.Clamp(w2, 0.0f, 1.0f);
+                // Continuous Hanning weights: w0 + w1 == 1.0 identically at all times
+                float cosPhase = MathF.Cos(2.0f * MathF.PI * phase0);
+                float w0 = 0.5f - 0.5f * cosPhase;
+                float w1 = 0.5f + 0.5f * cosPhase;
 
-                float s1 = InterpolateDelay(delayBuf, _pitchReadPos1);
-                float s2 = InterpolateDelay(delayBuf, _pitchReadPos2);
+                float s0 = InterpolateDelay(delayBuf, readPos0);
+                float s1 = InterpolateDelay(delayBuf, readPos1);
 
-                val = s1 * w1 + s2 * w2;
+                val = s0 * w0 + s1 * w1;
 
-                if (ch % 2 == 0)
+                // Advance phase and write pointer once per full audio frame
+                if (ch == channels - 1 || channels <= 1)
                 {
-                    _pitchReadPos1 = (_pitchReadPos1 + pitchRatio) % 4096;
-                    _pitchReadPos2 = (_pitchReadPos2 + pitchRatio) % 4096;
-                    _pitchWritePos = (_pitchWritePos + 1) % 4096;
+                    float deltaPhase = (1.0f - _smoothedPitchRatio) / PitchWindowSize;
+                    _pitchPhase += deltaPhase;
+                    if (_pitchPhase >= 1.0f) _pitchPhase -= 1.0f;
+                    else if (_pitchPhase < 0.0f) _pitchPhase += 1.0f;
+
+                    _pitchWritePos = (_pitchWritePos + 1) & PitchDelayBufferMask;
                 }
             }
+            else
+            {
+                // Bypass pitch delay line when pitch ratio is ~1.0 (natural voice)
+                if (ch == channels - 1 || channels <= 1)
+                {
+                    _pitchWritePos = (_pitchWritePos + 1) & PitchDelayBufferMask;
+                }
+            }
+        }
+        else
+        {
+            _smoothedPitchRatio = 1.0f;
         }
 
         // 8. Gain (-50 dB to +50 dB) and Volume
@@ -821,7 +854,7 @@ public class WasapiAudioRecorder : IDisposable
             for (int i = 0; i < samples.Length; i++)
             {
                 int ch = channels > 1 ? (i % channels) : 0;
-                samples[i] = ProcessMicSample(samples[i], ch, sampleRate);
+                samples[i] = ProcessMicSample(samples[i], ch, channels, sampleRate);
             }
         }
         else if (bitsPerSample == 16)
@@ -831,7 +864,7 @@ public class WasapiAudioRecorder : IDisposable
             {
                 int ch = channels > 1 ? (i % channels) : 0;
                 float inVal = samples[i] / 32768.0f;
-                float outVal = ProcessMicSample(inVal, ch, sampleRate);
+                float outVal = ProcessMicSample(inVal, ch, channels, sampleRate);
                 samples[i] = (short)Math.Clamp((int)MathF.Round(outVal * 32767.0f), -32768, 32767);
             }
         }
