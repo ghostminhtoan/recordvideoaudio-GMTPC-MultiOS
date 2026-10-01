@@ -64,6 +64,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         PipSizeList = new ObservableCollection<PipSize> { PipSize.Small, PipSize.Medium, PipSize.Large };
         AudioTrackModeList = new ObservableCollection<AudioTrackMode> { AudioTrackMode.MixToSingleTrack, AudioTrackMode.SeparateTracks };
         AutoStopPresetList = new ObservableCollection<int> { 0, 5, 10, 15, 30, 60, 120 };
+        VocalProfileList = new ObservableCollection<VocalProfile> { VocalProfile.Natural, VocalProfile.BroadcastWarmth, VocalProfile.CrystalClear, VocalProfile.PodcastStudio };
+        AutoTuneScaleList = new ObservableCollection<AutoTuneScale> { AutoTuneScale.Chromatic, AutoTuneScale.Major, AutoTuneScale.Minor };
+        MusicalKeyList = new ObservableCollection<MusicalKey> { MusicalKey.C, MusicalKey.Db, MusicalKey.D, MusicalKey.Eb, MusicalKey.E, MusicalKey.F, MusicalKey.Gb, MusicalKey.G, MusicalKey.Ab, MusicalKey.A, MusicalKey.Bb, MusicalKey.B };
 
         Profiles = new ObservableCollection<QualityProfile>(QualityProfile.GetBuiltInProfiles());
         if (Profiles.Count > 0)
@@ -301,9 +304,49 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private bool micHighPassFilter = true;
 
+    // Studio Vocal Polish (Compressor, EQ & De-Esser)
+    [ObservableProperty]
+    private bool micCompressor = true;
+
+    [ObservableProperty]
+    private double micCompressorThresholdDb = -18.0;
+
+    [ObservableProperty]
+    private double micCompressorRatio = 4.0;
+
+    [ObservableProperty]
+    private VocalProfile selectedVocalProfile = VocalProfile.BroadcastWarmth;
+
+    [ObservableProperty]
+    private bool micDeEsser = true;
+
+    // Auto-Tune & Voice FX (Pitch Correction & Voice Changer)
+    [ObservableProperty]
+    private bool micAutoTune = false;
+
+    [ObservableProperty]
+    private MusicalKey selectedAutoTuneKey = MusicalKey.C;
+
+    [ObservableProperty]
+    private AutoTuneScale selectedAutoTuneScale = AutoTuneScale.Chromatic;
+
+    [ObservableProperty]
+    private int micAutoTuneSpeed = 20;
+
+    [ObservableProperty]
+    private int micPitchShiftSemitones = 0;
+
     public string SpeakerGainDisplay => $"{(SpeakerGainDb >= 0 ? "+" : "")}{SpeakerGainDb:F1} dB";
     public string MicGainDisplay => $"{(MicGainDb >= 0 ? "+" : "")}{MicGainDb:F1} dB";
     public string MicGateThresholdDisplay => $"{MicNoiseGateThresholdDb:F1} dB";
+    public string MicCompressorThresholdDisplay => $"{MicCompressorThresholdDb:F1} dB";
+    public string MicCompressorRatioDisplay => $"{MicCompressorRatio:F1}:1";
+    public string MicAutoTuneSpeedDisplay => MicAutoTuneSpeed <= 8 ? "0ms (Hard Robot)" : $"{MicAutoTuneSpeed} ms";
+    public string MicPitchShiftDisplay => $"{(MicPitchShiftSemitones > 0 ? "+" : "")}{MicPitchShiftSemitones} {(MicPitchShiftSemitones switch { < -8 => "(Quỷ / Monster)", < -2 => "(Nam trầm)", 0 => "(Giọng thật)", < 8 => "(Nữ)", _ => "(Chipmunk)" })}";
+
+    public ObservableCollection<VocalProfile> VocalProfileList { get; }
+    public ObservableCollection<AutoTuneScale> AutoTuneScaleList { get; }
+    public ObservableCollection<MusicalKey> MusicalKeyList { get; }
 
     [ObservableProperty]
     private RecordingState currentState = RecordingState.Idle;
@@ -548,6 +591,40 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         RefreshCommandPreview();
     }
 
+    partial void OnMicCompressorChanged(bool value) => UpdateAudioMonitoring();
+    partial void OnMicCompressorThresholdDbChanged(double value)
+    {
+        OnPropertyChanged(nameof(MicCompressorThresholdDisplay));
+        UpdateAudioMonitoring();
+    }
+    partial void OnMicCompressorRatioChanged(double value)
+    {
+        OnPropertyChanged(nameof(MicCompressorRatioDisplay));
+        UpdateAudioMonitoring();
+    }
+    partial void OnSelectedVocalProfileChanged(VocalProfile value) => UpdateAudioMonitoring();
+    partial void OnMicDeEsserChanged(bool value) => UpdateAudioMonitoring();
+
+    partial void OnMicAutoTuneChanged(bool value) => UpdateAudioMonitoring();
+    partial void OnSelectedAutoTuneKeyChanged(MusicalKey value) => UpdateAudioMonitoring();
+    partial void OnSelectedAutoTuneScaleChanged(AutoTuneScale value) => UpdateAudioMonitoring();
+    partial void OnMicAutoTuneSpeedChanged(int value)
+    {
+        OnPropertyChanged(nameof(MicAutoTuneSpeedDisplay));
+        UpdateAudioMonitoring();
+    }
+    partial void OnMicPitchShiftSemitonesChanged(int value)
+    {
+        OnPropertyChanged(nameof(MicPitchShiftDisplay));
+        UpdateAudioMonitoring();
+    }
+
+    [RelayCommand]
+    private void ResetPitchShift()
+    {
+        MicPitchShiftSemitones = 0;
+    }
+
     private void UpdateAudioMonitoring()
     {
         _engine.UpdateAudioMonitoringSettings(
@@ -556,7 +633,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             SpeakerGainDb, MicGainDb,
             MicNoiseSuppression,
             MicNoiseGate, MicNoiseGateThresholdDb,
-            MicHighPassFilter
+            MicHighPassFilter,
+            MicCompressor, MicCompressorThresholdDb, MicCompressorRatio,
+            SelectedVocalProfile, MicDeEsser,
+            MicAutoTune, SelectedAutoTuneKey, SelectedAutoTuneScale,
+            MicAutoTuneSpeed, MicPitchShiftSemitones
         );
     }
 
@@ -724,6 +805,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             MicNoiseGate = MicNoiseGate,
             MicNoiseGateThresholdDb = MicNoiseGateThresholdDb,
             MicHighPassFilter = MicHighPassFilter,
+            MicCompressor = MicCompressor,
+            MicCompressorThresholdDb = MicCompressorThresholdDb,
+            MicCompressorRatio = MicCompressorRatio,
+            MicVocalProfile = SelectedVocalProfile,
+            MicDeEsser = MicDeEsser,
+            MicAutoTune = MicAutoTune,
+            MicAutoTuneKey = SelectedAutoTuneKey,
+            MicAutoTuneScale = SelectedAutoTuneScale,
+            MicAutoTuneSpeed = MicAutoTuneSpeed,
+            MicPitchShiftSemitones = MicPitchShiftSemitones,
             RecordCtrl = RecordCtrl,
             RecordAlt = RecordAlt,
             RecordShift = RecordShift,

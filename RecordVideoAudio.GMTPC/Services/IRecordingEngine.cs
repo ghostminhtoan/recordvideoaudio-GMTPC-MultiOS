@@ -32,7 +32,11 @@ public interface IRecordingEngine : IDisposable
         double speakerGainDb = 0.0, double micGainDb = 0.0,
         bool micNoiseSuppression = true,
         bool micNoiseGate = false, double micNoiseGateThresholdDb = -36.0,
-        bool micHighPassFilter = true);
+        bool micHighPassFilter = true,
+        bool micCompressor = true, double micCompressorThresholdDb = -18.0, double micCompressorRatio = 4.0,
+        VocalProfile micVocalProfile = VocalProfile.BroadcastWarmth, bool micDeEsser = true,
+        bool micAutoTune = false, MusicalKey micAutoTuneKey = MusicalKey.C, AutoTuneScale micAutoTuneScale = AutoTuneScale.Chromatic,
+        int micAutoTuneSpeed = 20, int micPitchShiftSemitones = 0);
 }
 
 public class RecordingEngine : IRecordingEngine
@@ -58,6 +62,16 @@ public class RecordingEngine : IRecordingEngine
     private bool _monitorMicNoiseGate = false;
     private double _monitorMicNoiseGateThresholdDb = -36.0;
     private bool _monitorMicHighPassFilter = true;
+    private bool _monitorMicCompressor = true;
+    private double _monitorMicCompressorThresholdDb = -18.0;
+    private double _monitorMicCompressorRatio = 4.0;
+    private VocalProfile _monitorMicVocalProfile = VocalProfile.BroadcastWarmth;
+    private bool _monitorMicDeEsser = true;
+    private bool _monitorMicAutoTune = false;
+    private MusicalKey _monitorMicAutoTuneKey = MusicalKey.C;
+    private AutoTuneScale _monitorMicAutoTuneScale = AutoTuneScale.Chromatic;
+    private int _monitorMicAutoTuneSpeed = 20;
+    private int _monitorMicPitchShiftSemitones = 0;
 
     public RecordingState CurrentState { get; private set; } = RecordingState.Idle;
     public RecordingStats CurrentStats { get; private set; } = new();
@@ -87,7 +101,11 @@ public class RecordingEngine : IRecordingEngine
         double speakerGainDb = 0.0, double micGainDb = 0.0,
         bool micNoiseSuppression = true,
         bool micNoiseGate = false, double micNoiseGateThresholdDb = -36.0,
-        bool micHighPassFilter = true)
+        bool micHighPassFilter = true,
+        bool micCompressor = true, double micCompressorThresholdDb = -18.0, double micCompressorRatio = 4.0,
+        VocalProfile micVocalProfile = VocalProfile.BroadcastWarmth, bool micDeEsser = true,
+        bool micAutoTune = false, MusicalKey micAutoTuneKey = MusicalKey.C, AutoTuneScale micAutoTuneScale = AutoTuneScale.Chromatic,
+        int micAutoTuneSpeed = 20, int micPitchShiftSemitones = 0)
     {
         _monitorSpeaker = speakerEnabled;
         _monitorSpeakerVolume = speakerVolume;
@@ -99,13 +117,27 @@ public class RecordingEngine : IRecordingEngine
         _monitorMicNoiseGate = micNoiseGate;
         _monitorMicNoiseGateThresholdDb = micNoiseGateThresholdDb;
         _monitorMicHighPassFilter = micHighPassFilter;
+        _monitorMicCompressor = micCompressor;
+        _monitorMicCompressorThresholdDb = micCompressorThresholdDb;
+        _monitorMicCompressorRatio = micCompressorRatio;
+        _monitorMicVocalProfile = micVocalProfile;
+        _monitorMicDeEsser = micDeEsser;
+        _monitorMicAutoTune = micAutoTune;
+        _monitorMicAutoTuneKey = micAutoTuneKey;
+        _monitorMicAutoTuneScale = micAutoTuneScale;
+        _monitorMicAutoTuneSpeed = micAutoTuneSpeed;
+        _monitorMicPitchShiftSemitones = micPitchShiftSemitones;
 
         // Forward immediately to WasapiAudioRecorder for dynamic real-time DSP during active recording
         _audioRecorder.UpdateRealtimeSettings(
             speakerEnabled, speakerVolume, speakerGainDb,
             micEnabled, micVolume, micGainDb,
             micNoiseSuppression, micNoiseGate, micNoiseGateThresholdDb,
-            micHighPassFilter
+            micHighPassFilter,
+            micCompressor, micCompressorThresholdDb, micCompressorRatio,
+            micVocalProfile, micDeEsser,
+            micAutoTune, micAutoTuneKey, micAutoTuneScale,
+            micAutoTuneSpeed, micPitchShiftSemitones
         );
 
         if (ActiveConfig != null)
@@ -120,6 +152,16 @@ public class RecordingEngine : IRecordingEngine
             ActiveConfig.MicNoiseGate = micNoiseGate;
             ActiveConfig.MicNoiseGateThresholdDb = micNoiseGateThresholdDb;
             ActiveConfig.MicHighPassFilter = micHighPassFilter;
+            ActiveConfig.MicCompressor = micCompressor;
+            ActiveConfig.MicCompressorThresholdDb = micCompressorThresholdDb;
+            ActiveConfig.MicCompressorRatio = micCompressorRatio;
+            ActiveConfig.MicVocalProfile = micVocalProfile;
+            ActiveConfig.MicDeEsser = micDeEsser;
+            ActiveConfig.MicAutoTune = micAutoTune;
+            ActiveConfig.MicAutoTuneKey = micAutoTuneKey;
+            ActiveConfig.MicAutoTuneScale = micAutoTuneScale;
+            ActiveConfig.MicAutoTuneSpeed = micAutoTuneSpeed;
+            ActiveConfig.MicPitchShiftSemitones = micPitchShiftSemitones;
         }
     }
 
@@ -170,6 +212,16 @@ public class RecordingEngine : IRecordingEngine
                 config.MicNoiseGate,
                 config.MicNoiseGateThresholdDb,
                 config.MicHighPassFilter,
+                config.MicCompressor,
+                config.MicCompressorThresholdDb,
+                config.MicCompressorRatio,
+                config.MicVocalProfile,
+                config.MicDeEsser,
+                config.MicAutoTune,
+                config.MicAutoTuneKey,
+                config.MicAutoTuneScale,
+                config.MicAutoTuneSpeed,
+                config.MicPitchShiftSemitones,
                 outDir
             );
             if (!string.IsNullOrEmpty(audioErr))

@@ -52,6 +52,20 @@ public class RecordingConfig
     public double MicNoiseGateThresholdDb { get; set; } = -36.0; // -60.0 to -20.0 dB
     public bool MicHighPassFilter { get; set; } = true;
 
+    // Studio Vocal Polish (Compressor, EQ & De-Esser)
+    public bool MicCompressor { get; set; } = true;
+    public double MicCompressorThresholdDb { get; set; } = -18.0; // -36.0 to -6.0 dB
+    public double MicCompressorRatio { get; set; } = 4.0;         // 1.0 to 10.0
+    public VocalProfile MicVocalProfile { get; set; } = VocalProfile.BroadcastWarmth;
+    public bool MicDeEsser { get; set; } = true;
+
+    // Auto-Tune & Voice FX (Pitch Correction & Voice Changer)
+    public bool MicAutoTune { get; set; } = false;
+    public MusicalKey MicAutoTuneKey { get; set; } = MusicalKey.C;
+    public AutoTuneScale MicAutoTuneScale { get; set; } = AutoTuneScale.Chromatic;
+    public int MicAutoTuneSpeed { get; set; } = 20; // 0ms (Hard Robot) - 100ms (Natural)
+    public int MicPitchShiftSemitones { get; set; } = 0; // -12 to +12 semitones
+
     // OBS-Style Multi-Track Audio Matrix
     // Speaker Routing to Track 1, 2, 3
     public bool SpeakerTrack1 { get; set; } = true;

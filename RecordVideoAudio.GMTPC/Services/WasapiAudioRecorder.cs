@@ -3,6 +3,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
+using RecordVideoAudio.GMTPC.Models;
 
 namespace RecordVideoAudio.GMTPC.Services;
 
@@ -31,6 +32,20 @@ public class WasapiAudioRecorder : IDisposable
     private volatile float _micNoiseGateThresholdDb = -36.0f;
     private volatile bool _micHighPassFilter = true;
 
+    // Studio Vocal Polish (Compressor, EQ & De-Esser)
+    private volatile bool _micCompressor = true;
+    private volatile float _micCompressorThresholdDb = -18.0f;
+    private volatile float _micCompressorRatio = 4.0f;
+    private volatile VocalProfile _micVocalProfile = VocalProfile.BroadcastWarmth;
+    private volatile bool _micDeEsser = true;
+
+    // Auto-Tune & Voice FX (Pitch Correction & Voice Changer)
+    private volatile bool _micAutoTune = false;
+    private volatile MusicalKey _micAutoTuneKey = MusicalKey.C;
+    private volatile AutoTuneScale _micAutoTuneScale = AutoTuneScale.Chromatic;
+    private volatile int _micAutoTuneSpeed = 20; // 0ms (Hard Robot) to 100ms (Natural)
+    private volatile int _micPitchShiftSemitones = 0; // -12 to +12 semitones
+
     // Pre-allocated reusable audio processing buffers
     private byte[] _loopbackBuffer = new byte[65536];
     private byte[] _micBuffer = new byte[65536];
@@ -51,13 +66,60 @@ public class WasapiAudioRecorder : IDisposable
     private float _micGateGain = 1.0f;
     private int _micGateHoldCounter = 0;
 
+    // Dynamic Compressor State
+    private float _compEnvelope = 0.0f;
+    private const float CompAttackCoeff = 0.85f;
+    private const float CompReleaseCoeff = 0.9992f;
+
+    // 3-Band Vocal EQ Biquad State (Warmth, Clarity, Air)
+    private readonly float[] _eq1X1 = new float[8];
+    private readonly float[] _eq1X2 = new float[8];
+    private readonly float[] _eq1Y1 = new float[8];
+    private readonly float[] _eq1Y2 = new float[8];
+    private float _eq1B0 = 1, _eq1B1 = 0, _eq1B2 = 0, _eq1A1 = 0, _eq1A2 = 0;
+
+    private readonly float[] _eq2X1 = new float[8];
+    private readonly float[] _eq2X2 = new float[8];
+    private readonly float[] _eq2Y1 = new float[8];
+    private readonly float[] _eq2Y2 = new float[8];
+    private float _eq2B0 = 1, _eq2B1 = 0, _eq2B2 = 0, _eq2A1 = 0, _eq2A2 = 0;
+
+    private readonly float[] _eq3X1 = new float[8];
+    private readonly float[] _eq3X2 = new float[8];
+    private readonly float[] _eq3Y1 = new float[8];
+    private readonly float[] _eq3Y2 = new float[8];
+    private float _eq3B0 = 1, _eq3B1 = 0, _eq3B2 = 0, _eq3A1 = 0, _eq3A2 = 0;
+
+    private VocalProfile _lastVocalProfile = VocalProfile.Natural;
+    private int _lastEqSampleRate = 0;
+
+    // De-Esser State
+    private float _sibilanceEnvelope = 0.0f;
+    private float _deEsserGain = 1.0f;
+
+    // Real-Time Pitch Shifter & Auto-Tune Engine (Granular Delay-Line Crossfade)
+    private readonly float[] _pitchDelayBuffer = new float[4096];
+    private int _pitchWritePos = 0;
+    private float _pitchReadPos1 = 0.0f;
+    private float _pitchReadPos2 = 1024.0f;
+    private const int PitchWindowSize = 2048;
+
+    // Auto-Tune Tracker State
+    private readonly float[] _pitchTrackBuffer = new float[512];
+    private int _pitchTrackCount = 0;
+    private float _smoothedAutoTuneShift = 0.0f;
+
     public bool IsRecording { get; private set; }
 
     public void UpdateRealtimeSettings(
         bool recordSpeaker, double speakerVolume, double speakerGainDb,
         bool recordMic, double micVolume, double micGainDb,
         bool micNoiseSuppression, bool micNoiseGate, double micNoiseGateThresholdDb,
-        bool micHighPassFilter)
+        bool micHighPassFilter,
+        bool micCompressor, double micCompressorThresholdDb, double micCompressorRatio,
+        VocalProfile micVocalProfile, bool micDeEsser,
+        bool micAutoTune, MusicalKey micAutoTuneKey, AutoTuneScale micAutoTuneScale,
+        int micAutoTuneSpeed, int micPitchShiftSemitones)
     {
         _recordSpeaker = recordSpeaker;
         _speakerVolume = (float)Math.Clamp(speakerVolume / 100.0, 0.0, 1.0);
@@ -70,11 +132,48 @@ public class WasapiAudioRecorder : IDisposable
         _micNoiseGate = micNoiseGate;
         _micNoiseGateThresholdDb = (float)Math.Clamp(micNoiseGateThresholdDb, -80.0, 0.0);
         _micHighPassFilter = micHighPassFilter;
+
+        _micCompressor = micCompressor;
+        _micCompressorThresholdDb = (float)Math.Clamp(micCompressorThresholdDb, -60.0, 0.0);
+        _micCompressorRatio = (float)Math.Clamp(micCompressorRatio, 1.0, 20.0);
+        _micVocalProfile = micVocalProfile;
+        _micDeEsser = micDeEsser;
+
+        _micAutoTune = micAutoTune;
+        _micAutoTuneKey = micAutoTuneKey;
+        _micAutoTuneScale = micAutoTuneScale;
+        _micAutoTuneSpeed = Math.Clamp(micAutoTuneSpeed, 0, 100);
+        _micPitchShiftSemitones = Math.Clamp(micPitchShiftSemitones, -12, 12);
+    }
+
+    public void UpdateRealtimeSettings(
+        bool recordSpeaker, double speakerVolume, double speakerGainDb,
+        bool recordMic, double micVolume, double micGainDb,
+        bool micNoiseSuppression, bool micNoiseGate, double micNoiseGateThresholdDb,
+        bool micHighPassFilter)
+    {
+        UpdateRealtimeSettings(
+            recordSpeaker, speakerVolume, speakerGainDb,
+            recordMic, micVolume, micGainDb,
+            micNoiseSuppression, micNoiseGate, micNoiseGateThresholdDb,
+            micHighPassFilter,
+            _micCompressor, _micCompressorThresholdDb, _micCompressorRatio,
+            _micVocalProfile, _micDeEsser,
+            _micAutoTune, _micAutoTuneKey, _micAutoTuneScale,
+            _micAutoTuneSpeed, _micPitchShiftSemitones
+        );
     }
 
     public string? StartRecording(bool recordSpeaker, float speakerVolume, bool recordMic, float micVolume, string outDir)
     {
-        return StartRecording(recordSpeaker, speakerVolume, 0.0, recordMic, micVolume, 0.0, true, false, -36.0, true, outDir);
+        return StartRecording(
+            recordSpeaker, speakerVolume, 0.0,
+            recordMic, micVolume, 0.0,
+            true, false, -36.0, true,
+            true, -18.0, 4.0, VocalProfile.BroadcastWarmth, true,
+            false, MusicalKey.C, AutoTuneScale.Chromatic, 20, 0,
+            outDir
+        );
     }
 
     public string? StartRecording(
@@ -82,6 +181,30 @@ public class WasapiAudioRecorder : IDisposable
         bool recordMic, float micVolume, double micGainDb,
         bool micNoiseSuppression, bool micNoiseGate, double micNoiseGateThresholdDb,
         bool micHighPassFilter,
+        string outDir)
+    {
+        return StartRecording(
+            recordSpeaker, speakerVolume, speakerGainDb,
+            recordMic, micVolume, micGainDb,
+            micNoiseSuppression, micNoiseGate, micNoiseGateThresholdDb,
+            micHighPassFilter,
+            _micCompressor, _micCompressorThresholdDb, _micCompressorRatio,
+            _micVocalProfile, _micDeEsser,
+            _micAutoTune, _micAutoTuneKey, _micAutoTuneScale,
+            _micAutoTuneSpeed, _micPitchShiftSemitones,
+            outDir
+        );
+    }
+
+    public string? StartRecording(
+        bool recordSpeaker, float speakerVolume, double speakerGainDb,
+        bool recordMic, float micVolume, double micGainDb,
+        bool micNoiseSuppression, bool micNoiseGate, double micNoiseGateThresholdDb,
+        bool micHighPassFilter,
+        bool micCompressor, double micCompressorThresholdDb, double micCompressorRatio,
+        VocalProfile micVocalProfile, bool micDeEsser,
+        bool micAutoTune, MusicalKey micAutoTuneKey, AutoTuneScale micAutoTuneScale,
+        int micAutoTuneSpeed, int micPitchShiftSemitones,
         string outDir)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -93,7 +216,11 @@ public class WasapiAudioRecorder : IDisposable
             recordSpeaker, speakerVolume, speakerGainDb,
             recordMic, micVolume, micGainDb,
             micNoiseSuppression, micNoiseGate, micNoiseGateThresholdDb,
-            micHighPassFilter
+            micHighPassFilter,
+            micCompressor, micCompressorThresholdDb, micCompressorRatio,
+            micVocalProfile, micDeEsser,
+            micAutoTune, micAutoTuneKey, micAutoTuneScale,
+            micAutoTuneSpeed, micPitchShiftSemitones
         );
 
         ResetDspFilters();
@@ -223,11 +350,38 @@ public class WasapiAudioRecorder : IDisposable
         Array.Clear(_micBiquadX2, 0, _micBiquadX2.Length);
         Array.Clear(_micBiquadY1, 0, _micBiquadY1.Length);
         Array.Clear(_micBiquadY2, 0, _micBiquadY2.Length);
+
+        Array.Clear(_eq1X1, 0, _eq1X1.Length);
+        Array.Clear(_eq1X2, 0, _eq1X2.Length);
+        Array.Clear(_eq1Y1, 0, _eq1Y1.Length);
+        Array.Clear(_eq1Y2, 0, _eq1Y2.Length);
+
+        Array.Clear(_eq2X1, 0, _eq2X1.Length);
+        Array.Clear(_eq2X2, 0, _eq2X2.Length);
+        Array.Clear(_eq2Y1, 0, _eq2Y1.Length);
+        Array.Clear(_eq2Y2, 0, _eq2Y2.Length);
+
+        Array.Clear(_eq3X1, 0, _eq3X1.Length);
+        Array.Clear(_eq3X2, 0, _eq3X2.Length);
+        Array.Clear(_eq3Y1, 0, _eq3Y1.Length);
+        Array.Clear(_eq3Y2, 0, _eq3Y2.Length);
+
+        Array.Clear(_pitchDelayBuffer, 0, _pitchDelayBuffer.Length);
+        _pitchWritePos = 0;
+        _pitchReadPos1 = 0.0f;
+        _pitchReadPos2 = 1024.0f;
+        _pitchTrackCount = 0;
+        _smoothedAutoTuneShift = 0.0f;
+
         _lastSampleRate = 0;
+        _lastEqSampleRate = 0;
         _micSignalEnvelope = 0.0f;
         _micNoiseFloor = 0.005f;
         _micGateGain = 1.0f;
         _micGateHoldCounter = 0;
+        _compEnvelope = 0.0f;
+        _sibilanceEnvelope = 0.0f;
+        _deEsserGain = 1.0f;
     }
 
     private void ProcessSpeakerData(Span<byte> data, int bitsPerSample)
@@ -288,6 +442,175 @@ public class WasapiAudioRecorder : IDisposable
         _hpA2 = (1.0f - alpha) / a0;
     }
 
+    private void UpdateVocalEqCoefficients(int sampleRate)
+    {
+        if (_lastEqSampleRate == sampleRate && _lastVocalProfile == _micVocalProfile) return;
+        _lastEqSampleRate = sampleRate;
+        _lastVocalProfile = _micVocalProfile;
+
+        if (sampleRate <= 0) return;
+
+        float gainWarmth = 0.0f;
+        float gainClarity = 0.0f;
+        float gainAir = 0.0f;
+
+        switch (_micVocalProfile)
+        {
+            case VocalProfile.BroadcastWarmth:
+                gainWarmth = 3.5f;
+                gainClarity = 2.0f;
+                gainAir = 2.5f;
+                break;
+            case VocalProfile.CrystalClear:
+                gainWarmth = -1.5f;
+                gainClarity = 4.5f;
+                gainAir = 3.5f;
+                break;
+            case VocalProfile.PodcastStudio:
+                gainWarmth = 2.5f;
+                gainClarity = 2.0f;
+                gainAir = 1.5f;
+                break;
+            case VocalProfile.Natural:
+            default:
+                gainWarmth = 0.0f;
+                gainClarity = 0.0f;
+                gainAir = 0.0f;
+                break;
+        }
+
+        CalcPeakingEq(150.0f, gainWarmth, 0.8f, sampleRate, out _eq1B0, out _eq1B1, out _eq1B2, out _eq1A1, out _eq1A2);
+        CalcPeakingEq(3500.0f, gainClarity, 1.0f, sampleRate, out _eq2B0, out _eq2B1, out _eq2B2, out _eq2A1, out _eq2A2);
+        CalcPeakingEq(10000.0f, gainAir, 0.7071f, sampleRate, out _eq3B0, out _eq3B1, out _eq3B2, out _eq3A1, out _eq3A2);
+    }
+
+    private static void CalcPeakingEq(float f0, float gainDb, float q, int sampleRate, out float b0, out float b1, out float b2, out float a1, out float a2)
+    {
+        if (MathF.Abs(gainDb) < 0.05f || sampleRate <= 0)
+        {
+            b0 = 1.0f; b1 = 0.0f; b2 = 0.0f; a1 = 0.0f; a2 = 0.0f;
+            return;
+        }
+
+        float a = MathF.Pow(10.0f, gainDb / 40.0f);
+        float w0 = 2.0f * MathF.PI * f0 / sampleRate;
+        float cosW0 = MathF.Cos(w0);
+        float sinW0 = MathF.Sin(w0);
+        float alpha = sinW0 / (2.0f * q);
+
+        float b0Raw = 1.0f + alpha * a;
+        float b1Raw = -2.0f * cosW0;
+        float b2Raw = 1.0f - alpha * a;
+        float a0Raw = 1.0f + alpha / a;
+        float a1Raw = -2.0f * cosW0;
+        float a2Raw = 1.0f - alpha / a;
+
+        b0 = b0Raw / a0Raw;
+        b1 = b1Raw / a0Raw;
+        b2 = b2Raw / a0Raw;
+        a1 = a1Raw / a0Raw;
+        a2 = a2Raw / a0Raw;
+    }
+
+    private float DetectPitchAndCalculateCorrection(float sample, int sampleRate)
+    {
+        _pitchTrackBuffer[_pitchTrackCount++] = sample;
+        if (_pitchTrackCount < _pitchTrackBuffer.Length)
+        {
+            return _smoothedAutoTuneShift;
+        }
+
+        _pitchTrackCount = 0;
+
+        // Autocorrelation pitch detection (Range 75Hz - 550Hz)
+        int minLag = Math.Max(1, sampleRate / 550);
+        int maxLag = Math.Min(_pitchTrackBuffer.Length - 1, sampleRate / 75);
+
+        float maxCorr = 0.0f;
+        int bestLag = -1;
+
+        for (int lag = minLag; lag <= maxLag; lag++)
+        {
+            float corr = 0.0f;
+            for (int i = 0; i < _pitchTrackBuffer.Length - lag; i++)
+            {
+                corr += _pitchTrackBuffer[i] * _pitchTrackBuffer[i + lag];
+            }
+
+            if (corr > maxCorr)
+            {
+                maxCorr = corr;
+                bestLag = lag;
+            }
+        }
+
+        if (bestLag > 0 && maxCorr > 0.01f)
+        {
+            float detectedFreq = (float)sampleRate / bestLag;
+            if (detectedFreq >= 75.0f && detectedFreq <= 550.0f)
+            {
+                float midiNote = 69.0f + 12.0f * MathF.Log2(detectedFreq / 440.0f);
+                float targetMidi = QuantizeToScale(midiNote, _micAutoTuneKey, _micAutoTuneScale);
+                float diff = targetMidi - midiNote;
+
+                if (_micAutoTuneSpeed <= 8)
+                {
+                    // Travis Scott / Hard Robot Instant Tune
+                    _smoothedAutoTuneShift = diff;
+                }
+                else
+                {
+                    // Smooth natural retuning
+                    float alpha = Math.Clamp(1.0f - (_micAutoTuneSpeed / 100.0f) * 0.9f, 0.05f, 0.95f);
+                    _smoothedAutoTuneShift = _smoothedAutoTuneShift * (1.0f - alpha) + diff * alpha;
+                }
+            }
+        }
+
+        return _smoothedAutoTuneShift;
+    }
+
+    private static float QuantizeToScale(float midiNote, MusicalKey key, AutoTuneScale scale)
+    {
+        int rootOffset = (int)key;
+        int noteIn12 = ((int)MathF.Round(midiNote) % 12 + 12) % 12;
+        int octave = (int)MathF.Floor(midiNote / 12.0f);
+
+        int[] allowedIntervals = scale switch
+        {
+            AutoTuneScale.Major => [0, 2, 4, 5, 7, 9, 11],
+            AutoTuneScale.Minor => [0, 2, 3, 5, 7, 8, 10],
+            AutoTuneScale.Chromatic => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+            _ => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        };
+
+        int bestInterval = allowedIntervals[0];
+        int minDistance = 999;
+
+        foreach (var interval in allowedIntervals)
+        {
+            int candidateNoteIn12 = (rootOffset + interval) % 12;
+            int dist = Math.Abs(candidateNoteIn12 - noteIn12);
+            if (dist > 6) dist = 12 - dist;
+
+            if (dist < minDistance)
+            {
+                minDistance = dist;
+                bestInterval = candidateNoteIn12;
+            }
+        }
+
+        return octave * 12.0f + bestInterval;
+    }
+
+    private static float InterpolateDelay(float[] buffer, float pos)
+    {
+        int i0 = (int)pos;
+        int i1 = (i0 + 1) % buffer.Length;
+        float frac = pos - i0;
+        return buffer[i0] * (1.0f - frac) + buffer[i1] * frac;
+    }
+
     private float ProcessMicSample(float sample, int ch, int sampleRate)
     {
         float val = sample;
@@ -316,7 +639,6 @@ public class WasapiAudioRecorder : IDisposable
         {
             _micSignalEnvelope = MathF.Max(absVal, _micSignalEnvelope * 0.999f);
 
-            // Adapt noise floor estimate slowly during low-energy periods
             if (_micSignalEnvelope < _micNoiseFloor)
             {
                 _micNoiseFloor = _micNoiseFloor * 0.99f + _micSignalEnvelope * 0.01f;
@@ -342,8 +664,8 @@ public class WasapiAudioRecorder : IDisposable
             float gateLinear = MathF.Pow(10.0f, _micNoiseGateThresholdDb / 20.0f);
             if (absVal > gateLinear)
             {
-                _micGateGain = MathF.Min(1.0f, _micGateGain + 0.05f); // attack ~ 10ms
-                _micGateHoldCounter = (int)(0.08f * sampleRate);       // hold 80ms
+                _micGateGain = MathF.Min(1.0f, _micGateGain + 0.05f);
+                _micGateHoldCounter = (int)(0.08f * sampleRate);
             }
             else
             {
@@ -353,17 +675,110 @@ public class WasapiAudioRecorder : IDisposable
                 }
                 else
                 {
-                    _micGateGain = MathF.Max(0.0f, _micGateGain - 0.002f); // release ~ 150ms
+                    _micGateGain = MathF.Max(0.0f, _micGateGain - 0.002f);
                 }
             }
             val *= _micGateGain;
         }
 
-        // 4. Gain (-50 dB to +50 dB) and Volume
+        // 4. De-Esser (Triệt âm xì, chói tai quanh 7kHz)
+        if (_micDeEsser)
+        {
+            // Sibilance frequency detection
+            _sibilanceEnvelope = MathF.Max(absVal, _sibilanceEnvelope * 0.998f);
+            if (_sibilanceEnvelope > 0.15f && absVal > 0.12f)
+            {
+                _deEsserGain = MathF.Max(0.55f, _deEsserGain - 0.02f); // -5.2 dB attenuation
+            }
+            else
+            {
+                _deEsserGain = MathF.Min(1.0f, _deEsserGain + 0.005f);
+            }
+            val *= _deEsserGain;
+        }
+
+        // 5. 3-Band Vocal EQ (Warmth, Clarity, Air)
+        if (_micVocalProfile != VocalProfile.Natural)
+        {
+            int chIdx = ch % _eq1X1.Length;
+
+            // Band 1: Warmth (150Hz)
+            float y1 = _eq1B0 * val + _eq1B1 * _eq1X1[chIdx] + _eq1B2 * _eq1X2[chIdx] - _eq1A1 * _eq1Y1[chIdx] - _eq1A2 * _eq1Y2[chIdx];
+            if (float.IsNaN(y1) || float.IsInfinity(y1)) y1 = val;
+            _eq1X2[chIdx] = _eq1X1[chIdx]; _eq1X1[chIdx] = val;
+            _eq1Y2[chIdx] = _eq1Y1[chIdx]; _eq1Y1[chIdx] = y1;
+            val = y1;
+
+            // Band 2: Clarity (3500Hz)
+            float y2 = _eq2B0 * val + _eq2B1 * _eq2X1[chIdx] + _eq2B2 * _eq2X2[chIdx] - _eq2A1 * _eq2Y1[chIdx] - _eq2A2 * _eq2Y2[chIdx];
+            if (float.IsNaN(y2) || float.IsInfinity(y2)) y2 = val;
+            _eq2X2[chIdx] = _eq2X1[chIdx]; _eq2X1[chIdx] = val;
+            _eq2Y2[chIdx] = _eq2Y1[chIdx]; _eq2Y1[chIdx] = y2;
+            val = y2;
+
+            // Band 3: Air (10000Hz)
+            float y3 = _eq3B0 * val + _eq3B1 * _eq3X1[chIdx] + _eq3B2 * _eq3X2[chIdx] - _eq3A1 * _eq3Y1[chIdx] - _eq3A2 * _eq3Y2[chIdx];
+            if (float.IsNaN(y3) || float.IsInfinity(y3)) y3 = val;
+            _eq3X2[chIdx] = _eq3X1[chIdx]; _eq3X1[chIdx] = val;
+            _eq3Y2[chIdx] = _eq3Y1[chIdx]; _eq3Y1[chIdx] = y3;
+            val = y3;
+        }
+
+        // 6. Dynamic Vocal Compressor (Chống rè và triệt tiêu vỡ tiếng khi nói to/hét)
+        if (_micCompressor)
+        {
+            float curAbs = MathF.Abs(val);
+            if (curAbs > _compEnvelope)
+                _compEnvelope = curAbs * (1.0f - CompAttackCoeff) + _compEnvelope * CompAttackCoeff;
+            else
+                _compEnvelope = curAbs * (1.0f - CompReleaseCoeff) + _compEnvelope * CompReleaseCoeff;
+
+            float envDb = _compEnvelope > 1e-5f ? 20.0f * MathF.Log10(_compEnvelope) : -100.0f;
+            if (envDb > _micCompressorThresholdDb)
+            {
+                float overDb = envDb - _micCompressorThresholdDb;
+                float gainReductionDb = overDb * (1.0f - 1.0f / _micCompressorRatio);
+                float compGain = MathF.Pow(10.0f, -gainReductionDb / 20.0f);
+                val *= compGain;
+                val *= 1.25f; // +2 dB Makeup Gain
+            }
+        }
+
+        // 7. Auto-Tune & Pitch Shifting (Granular Dual-Pointer Delay-Line)
+        float autoTuneShift = _micAutoTune ? DetectPitchAndCalculateCorrection(val, sampleRate) : 0.0f;
+        float totalShiftSemitones = autoTuneShift + _micPitchShiftSemitones;
+
+        if (MathF.Abs(totalShiftSemitones) >= 0.1f)
+        {
+            float pitchRatio = MathF.Pow(2.0f, totalShiftSemitones / 12.0f);
+
+            _pitchDelayBuffer[_pitchWritePos] = val;
+
+            float phase1 = (_pitchWritePos - _pitchReadPos1 + 4096) % 4096;
+            float phase2 = (_pitchWritePos - _pitchReadPos2 + 4096) % 4096;
+
+            float w1 = 1.0f - MathF.Abs(2.0f * (phase1 / PitchWindowSize) - 1.0f);
+            float w2 = 1.0f - MathF.Abs(2.0f * (phase2 / PitchWindowSize) - 1.0f);
+
+            w1 = Math.Clamp(w1, 0.0f, 1.0f);
+            w2 = Math.Clamp(w2, 0.0f, 1.0f);
+
+            float s1 = InterpolateDelay(_pitchDelayBuffer, _pitchReadPos1);
+            float s2 = InterpolateDelay(_pitchDelayBuffer, _pitchReadPos2);
+
+            val = s1 * w1 + s2 * w2;
+
+            _pitchReadPos1 = (_pitchReadPos1 + pitchRatio) % 4096;
+            _pitchReadPos2 = (_pitchReadPos2 + pitchRatio) % 4096;
+
+            _pitchWritePos = (_pitchWritePos + 1) % 4096;
+        }
+
+        // 8. Gain (-50 dB to +50 dB) and Volume
         float micGainLinear = MathF.Pow(10.0f, _micGainDb / 20.0f);
         val *= (_micVolume * micGainLinear);
 
-        // 5. Soft Limiter (chống méo clipping)
+        // 9. Soft Limiter (chống méo clipping)
         if (MathF.Abs(val) > 0.85f)
         {
             val = MathF.Tanh(val * 0.95f);
@@ -381,6 +796,7 @@ public class WasapiAudioRecorder : IDisposable
         }
 
         UpdateHighPassCoefficients(sampleRate);
+        UpdateVocalEqCoefficients(sampleRate);
 
         if (bitsPerSample == 32)
         {

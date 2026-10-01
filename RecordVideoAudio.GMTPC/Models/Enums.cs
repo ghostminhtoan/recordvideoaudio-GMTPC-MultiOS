@@ -91,3 +91,35 @@ public enum NoiseSuppressionEngine
     SpeexFFT     // Spectral Analysis (afftdn)
 }
 
+public enum VocalProfile
+{
+    Natural,          // Nguyên bản / Mộc
+    BroadcastWarmth,  // MC Truyền hình (Trầm ấm)
+    CrystalClear,     // Trong trẻo sắc nét
+    PodcastStudio     // Dày dặn chuẩn Studio Podcast
+}
+
+public enum AutoTuneScale
+{
+    Chromatic,        // Tự do 12 nửa cung
+    Major,            // Thang âm Trưởng
+    Minor             // Thang âm Thứ
+}
+
+public enum MusicalKey
+{
+    C,
+    Db,
+    D,
+    Eb,
+    E,
+    F,
+    Gb,
+    G,
+    Ab,
+    A,
+    Bb,
+    B
+}
+
+
