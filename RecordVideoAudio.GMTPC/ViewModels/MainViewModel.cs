@@ -75,7 +75,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         OutputDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Recordings");
 
         // Sync initial audio monitoring state with hardware meter
-        _engine.UpdateAudioMonitoringSettings(SystemAudioEnabled, SystemAudioVolume, MicAudioEnabled, MicAudioVolume);
+        UpdateAudioMonitoring();
 
         // Global hotkey hook (Default: Ctrl+Alt+Shift+D5 for Record, Ctrl+Alt+Shift+D8 for Pause)
         _hotKeyService = new GlobalHotKeyService();
@@ -269,6 +269,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private double systemAudioLevel = 0;
 
     [ObservableProperty]
+    private int speakerSyncOffsetMs = 0; // -500 to +1000 ms
+
+    [ObservableProperty]
+    private double speakerGainDb = 0.0; // -30.0 to +30.0 dB
+
+    [ObservableProperty]
     private bool micAudioEnabled = true;
 
     [ObservableProperty]
@@ -276,6 +282,28 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     private double micAudioLevel = 0;
+
+    [ObservableProperty]
+    private int micSyncOffsetMs = 0; // -500 to +1000 ms
+
+    [ObservableProperty]
+    private double micGainDb = 0.0; // -30.0 to +30.0 dB
+
+    [ObservableProperty]
+    private bool micNoiseSuppression = true;
+
+    [ObservableProperty]
+    private bool micNoiseGate = false;
+
+    [ObservableProperty]
+    private double micNoiseGateThresholdDb = -36.0; // -60.0 to -20.0 dB
+
+    [ObservableProperty]
+    private bool micHighPassFilter = true;
+
+    public string SpeakerGainDisplay => $"{(SpeakerGainDb >= 0 ? "+" : "")}{SpeakerGainDb:F1} dB";
+    public string MicGainDisplay => $"{(MicGainDb >= 0 ? "+" : "")}{MicGainDb:F1} dB";
+    public string MicGateThresholdDisplay => $"{MicNoiseGateThresholdDb:F1} dB";
 
     [ObservableProperty]
     private RecordingState currentState = RecordingState.Idle;
@@ -455,26 +483,71 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     partial void OnSystemAudioEnabledChanged(bool value)
     {
-        _engine.UpdateAudioMonitoringSettings(value, SystemAudioVolume, MicAudioEnabled, MicAudioVolume);
+        UpdateAudioMonitoring();
         if (!value) SystemAudioLevel = 0;
         RefreshCommandPreview();
     }
 
     partial void OnSystemAudioVolumeChanged(int value)
     {
-        _engine.UpdateAudioMonitoringSettings(SystemAudioEnabled, value, MicAudioEnabled, MicAudioVolume);
+        UpdateAudioMonitoring();
+    }
+
+    partial void OnSpeakerSyncOffsetMsChanged(int value) => RefreshCommandPreview();
+
+    partial void OnSpeakerGainDbChanged(double value)
+    {
+        OnPropertyChanged(nameof(SpeakerGainDisplay));
+        UpdateAudioMonitoring();
+        RefreshCommandPreview();
     }
 
     partial void OnMicAudioEnabledChanged(bool value)
     {
-        _engine.UpdateAudioMonitoringSettings(SystemAudioEnabled, SystemAudioVolume, value, MicAudioVolume);
+        UpdateAudioMonitoring();
         if (!value) MicAudioLevel = 0;
         RefreshCommandPreview();
     }
 
     partial void OnMicAudioVolumeChanged(int value)
     {
-        _engine.UpdateAudioMonitoringSettings(SystemAudioEnabled, SystemAudioVolume, MicAudioEnabled, value);
+        UpdateAudioMonitoring();
+    }
+
+    partial void OnMicSyncOffsetMsChanged(int value) => RefreshCommandPreview();
+
+    partial void OnMicGainDbChanged(double value)
+    {
+        OnPropertyChanged(nameof(MicGainDisplay));
+        UpdateAudioMonitoring();
+        RefreshCommandPreview();
+    }
+
+    partial void OnMicNoiseSuppressionChanged(bool value) => RefreshCommandPreview();
+
+    partial void OnMicNoiseGateChanged(bool value)
+    {
+        UpdateAudioMonitoring();
+        RefreshCommandPreview();
+    }
+
+    partial void OnMicNoiseGateThresholdDbChanged(double value)
+    {
+        OnPropertyChanged(nameof(MicGateThresholdDisplay));
+        UpdateAudioMonitoring();
+        RefreshCommandPreview();
+    }
+
+    partial void OnMicHighPassFilterChanged(bool value) => RefreshCommandPreview();
+
+    private void UpdateAudioMonitoring()
+    {
+        _engine.UpdateAudioMonitoringSettings(
+            SystemAudioEnabled, SystemAudioVolume,
+            MicAudioEnabled, MicAudioVolume,
+            SpeakerGainDb, MicGainDb,
+            MicNoiseGate, MicNoiseGateThresholdDb
+        );
     }
 
     partial void OnSpeakerTrack1Changed(bool value) => RefreshCommandPreview();
@@ -633,6 +706,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             MicTrack1 = MicTrack1,
             MicTrack2 = MicTrack2,
             MicTrack3 = MicTrack3,
+            SpeakerSyncOffsetMs = SpeakerSyncOffsetMs,
+            SpeakerGainDb = SpeakerGainDb,
+            MicSyncOffsetMs = MicSyncOffsetMs,
+            MicGainDb = MicGainDb,
+            MicNoiseSuppression = MicNoiseSuppression,
+            MicNoiseGate = MicNoiseGate,
+            MicNoiseGateThresholdDb = MicNoiseGateThresholdDb,
+            MicHighPassFilter = MicHighPassFilter,
             RecordCtrl = RecordCtrl,
             RecordAlt = RecordAlt,
             RecordShift = RecordShift,
@@ -913,6 +994,24 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         PauseWin = false;
         PauseVkCode = 0x38; // D8
         PauseKeyName = "D8";
+    }
+
+    [RelayCommand]
+    private void ResetSpeakerDsp()
+    {
+        SpeakerSyncOffsetMs = 0;
+        SpeakerGainDb = 0.0;
+    }
+
+    [RelayCommand]
+    private void ResetMicDsp()
+    {
+        MicSyncOffsetMs = 0;
+        MicGainDb = 0.0;
+        MicNoiseSuppression = true;
+        MicNoiseGate = false;
+        MicNoiseGateThresholdDb = -36.0;
+        MicHighPassFilter = true;
     }
 
     #endregion

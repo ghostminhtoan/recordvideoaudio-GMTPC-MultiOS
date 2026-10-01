@@ -357,20 +357,100 @@ public class FFmpegPipelineService : IEncoderPipelineService
         var spkLabels = new List<string>();
         var micLabels = new List<string>();
 
+        // 1. Pre-process Speaker Audio (Sync Offset + Gain)
+        string spkSourceLabel = spkInputIndex.HasValue ? $"[{spkInputIndex.Value}:a]" : string.Empty;
+        if (spkInputIndex.HasValue)
+        {
+            var spkFilters = new List<string>();
+            if (config.SpeakerSyncOffsetMs > 0)
+            {
+                spkFilters.Add($"adelay={config.SpeakerSyncOffsetMs}|{config.SpeakerSyncOffsetMs}");
+            }
+            else if (config.SpeakerSyncOffsetMs < 0)
+            {
+                double trimSec = -config.SpeakerSyncOffsetMs / 1000.0;
+                spkFilters.Add($"atrim=start={trimSec:0.###},asetpts=PTS-STARTPTS");
+            }
+
+            if (Math.Abs(config.SpeakerGainDb) >= 0.1)
+            {
+                spkFilters.Add($"volume={config.SpeakerGainDb:0.#}dB");
+            }
+
+            if (spkFilters.Count > 0)
+            {
+                string spkDspLabel = "spk_dsp";
+                filterParts.Add($"{spkSourceLabel}{string.Join(",", spkFilters)}[{spkDspLabel}]");
+                spkSourceLabel = $"[{spkDspLabel}]";
+            }
+        }
+
+        // 2. Pre-process Microphone Audio (Studio DSP Chain: High-Pass -> Denoise -> Gain -> Noise Gate -> Limiter -> Sync Offset)
+        string micSourceLabel = micInputIndex.HasValue ? $"[{micInputIndex.Value}:a]" : string.Empty;
+        if (micInputIndex.HasValue)
+        {
+            var micFilters = new List<string>();
+
+            // Step 1: High-Pass Filter (80Hz) to cut sub-bass rumble & desk vibrations
+            if (config.MicHighPassFilter)
+            {
+                micFilters.Add("highpass=f=80");
+            }
+
+            // Step 2: Studio Noise Suppression (Spectral Subtraction / AI Speech Denoise)
+            if (config.MicNoiseSuppression)
+            {
+                micFilters.Add("afftdn=nr=12:nf=-32:tn=1");
+            }
+
+            // Step 3: Gain Amplification (-30 dB to +30 dB)
+            if (Math.Abs(config.MicGainDb) >= 0.1)
+            {
+                micFilters.Add($"volume={config.MicGainDb:0.#}dB");
+            }
+
+            // Step 4: Noise Gate
+            if (config.MicNoiseGate)
+            {
+                micFilters.Add($"agate=threshold={config.MicNoiseGateThresholdDb:0.#}dB:range=0.01:ratio=10:attack=20:release=250");
+            }
+
+            // Step 5: Limiter to prevent clipping
+            micFilters.Add("alimiter=limit=0.98");
+
+            // Step 6: Sync Offset Delay
+            if (config.MicSyncOffsetMs > 0)
+            {
+                micFilters.Add($"adelay={config.MicSyncOffsetMs}|{config.MicSyncOffsetMs}");
+            }
+            else if (config.MicSyncOffsetMs < 0)
+            {
+                double trimSec = -config.MicSyncOffsetMs / 1000.0;
+                micFilters.Add($"atrim=start={trimSec:0.###},asetpts=PTS-STARTPTS");
+            }
+
+            if (micFilters.Count > 0)
+            {
+                string micDspLabel = "mic_dsp";
+                filterParts.Add($"{micSourceLabel}{string.Join(",", micFilters)}[{micDspLabel}]");
+                micSourceLabel = $"[{micDspLabel}]";
+            }
+        }
+
         // Generate split filters for speaker if needed
         if (spkInputIndex.HasValue)
         {
             if (spkCount == 1)
             {
                 string lbl = "spk_s0";
-                filterParts.Add($"[{spkInputIndex.Value}:a]anull[{lbl}]");
+                filterParts.Add($"{spkSourceLabel}anull[{lbl}]");
                 spkLabels.Add(lbl);
             }
             else
             {
                 var lbls = new List<string>();
                 for (int i = 0; i < spkCount; i++) lbls.Add($"spk_s{i}");
-                filterParts.Add($"[{spkInputIndex.Value}:a]asplit={spkCount}{string.Concat(lbls.ConvertAll(l => $"[{l}]"))}");
+                filterParts.Add($"{spkSourceLabel}asplit={spkCount}{string.Concat(lbls.ConvertAll(l => $"[{l}]"))}");
                 spkLabels.AddRange(lbls);
             }
         }
@@ -381,14 +461,14 @@ public class FFmpegPipelineService : IEncoderPipelineService
             if (micCount == 1)
             {
                 string lbl = "mic_s0";
-                filterParts.Add($"[{micInputIndex.Value}:a]anull[{lbl}]");
+                filterParts.Add($"{micSourceLabel}anull[{lbl}]");
                 micLabels.Add(lbl);
             }
             else
             {
                 var lbls = new List<string>();
                 for (int i = 0; i < micCount; i++) lbls.Add($"mic_s{i}");
-                filterParts.Add($"[{micInputIndex.Value}:a]asplit={micCount}{string.Concat(lbls.ConvertAll(l => $"[{l}]"))}");
+                filterParts.Add($"{micSourceLabel}asplit={micCount}{string.Concat(lbls.ConvertAll(l => $"[{l}]"))}");
                 micLabels.AddRange(lbls);
             }
         }

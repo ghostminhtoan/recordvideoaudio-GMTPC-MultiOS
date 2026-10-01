@@ -85,3 +85,9 @@ public enum AudioTrackMode
     SeparateTracks
 }
 
+public enum NoiseSuppressionEngine
+{
+    RNNoise,     // AI Deep Learning RNN (Speech-optimized)
+    SpeexFFT     // Spectral Analysis (afftdn)
+}
+

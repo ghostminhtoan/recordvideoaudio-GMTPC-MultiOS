@@ -25,7 +25,7 @@ if (Test-Path "$winDir\RecordVideoAudio.GMTPC.Desktop.exe") {
 $vibeDir = "C:\Users\Admin\AppData\Local\vibe"
 if (Test-Path "$vibeDir\ffmpeg.exe") {
     Copy-Item "$vibeDir\ffmpeg.exe", "$vibeDir\*.dll" $winDir -Force -ErrorAction SilentlyContinue
-    Copy-Item "$vibeDir\ffmpeg.exe" "$distDir\ffmpeg.exe" -Force -ErrorAction SilentlyContinue
+    Copy-Item "$vibeDir\ffmpeg.exe", "$vibeDir\*.dll" $distDir -Force -ErrorAction SilentlyContinue
 }
 
 # 2. Xuất bản Linux x64

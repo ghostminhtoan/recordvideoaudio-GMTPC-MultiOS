@@ -47,6 +47,14 @@ public class RealtimeAudioMonitor : IDisposable
 
     public (double speakerLevel, double micLevel) GetCurrentLevels(bool speakerEnabled, double speakerVolume, bool micEnabled, double micVolume)
     {
+        return GetCurrentLevels(speakerEnabled, speakerVolume, 0.0, micEnabled, micVolume, 0.0, false, -36.0);
+    }
+
+    public (double speakerLevel, double micLevel) GetCurrentLevels(
+        bool speakerEnabled, double speakerVolume, double speakerGainDb,
+        bool micEnabled, double micVolume, double micGainDb,
+        bool micNoiseGate = false, double micNoiseGateThresholdDb = -36.0)
+    {
         if (!_initialized || !RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             return (0, 0);
 
@@ -58,12 +66,11 @@ public class RealtimeAudioMonitor : IDisposable
             try
             {
                 float peak = _speakerDevice.AudioMeterInformation.MasterPeakValue;
-                // peak is 0.0 to 1.0, scale to 0-100 and apply user volume slider
-                speaker = Math.Min(100.0, Math.Max(0.0, peak * 100.0 * (speakerVolume / 100.0)));
+                double gainMultiplier = Math.Pow(10.0, speakerGainDb / 20.0);
+                speaker = Math.Min(100.0, Math.Max(0.0, peak * 100.0 * (speakerVolume / 100.0) * gainMultiplier));
             }
             catch
             {
-                // Re-initialize if device was disconnected or changed
                 InitializeDevices();
             }
         }
@@ -73,7 +80,16 @@ public class RealtimeAudioMonitor : IDisposable
             try
             {
                 float peak = _micDevice.AudioMeterInformation.MasterPeakValue;
-                mic = Math.Min(100.0, Math.Max(0.0, peak * 100.0 * (micVolume / 100.0)));
+                double gateLinear = Math.Pow(10.0, micNoiseGateThresholdDb / 20.0);
+                if (micNoiseGate && peak < gateLinear)
+                {
+                    mic = 0;
+                }
+                else
+                {
+                    double gainMultiplier = Math.Pow(10.0, micGainDb / 20.0);
+                    mic = Math.Min(100.0, Math.Max(0.0, peak * 100.0 * (micVolume / 100.0) * gainMultiplier));
+                }
             }
             catch
             {

@@ -26,7 +26,11 @@ public interface IRecordingEngine : IDisposable
     Task<bool> PauseRecordingAsync();
     Task<bool> ResumeRecordingAsync();
     Task<string> StopRecordingAsync();
-    void UpdateAudioMonitoringSettings(bool speakerEnabled, double speakerVolume, bool micEnabled, double micVolume);
+    void UpdateAudioMonitoringSettings(
+        bool speakerEnabled, double speakerVolume,
+        bool micEnabled, double micVolume,
+        double speakerGainDb = 0.0, double micGainDb = 0.0,
+        bool micNoiseGate = false, double micNoiseGateThresholdDb = -36.0);
 }
 
 public class RecordingEngine : IRecordingEngine
@@ -44,8 +48,12 @@ public class RecordingEngine : IRecordingEngine
 
     private bool _monitorSpeaker = true;
     private double _monitorSpeakerVolume = 100;
+    private double _monitorSpeakerGainDb = 0.0;
     private bool _monitorMic = true;
     private double _monitorMicVolume = 90;
+    private double _monitorMicGainDb = 0.0;
+    private bool _monitorMicNoiseGate = false;
+    private double _monitorMicNoiseGateThresholdDb = -36.0;
 
     public RecordingState CurrentState { get; private set; } = RecordingState.Idle;
     public RecordingStats CurrentStats { get; private set; } = new();
@@ -69,12 +77,20 @@ public class RecordingEngine : IRecordingEngine
         _levelTimer.Start();
     }
 
-    public void UpdateAudioMonitoringSettings(bool speakerEnabled, double speakerVolume, bool micEnabled, double micVolume)
+    public void UpdateAudioMonitoringSettings(
+        bool speakerEnabled, double speakerVolume,
+        bool micEnabled, double micVolume,
+        double speakerGainDb = 0.0, double micGainDb = 0.0,
+        bool micNoiseGate = false, double micNoiseGateThresholdDb = -36.0)
     {
         _monitorSpeaker = speakerEnabled;
         _monitorSpeakerVolume = speakerVolume;
+        _monitorSpeakerGainDb = speakerGainDb;
         _monitorMic = micEnabled;
         _monitorMicVolume = micVolume;
+        _monitorMicGainDb = micGainDb;
+        _monitorMicNoiseGate = micNoiseGate;
+        _monitorMicNoiseGateThresholdDb = micNoiseGateThresholdDb;
     }
 
     public Task<bool> StartRecordingAsync(RecordingConfig config)
@@ -351,12 +367,16 @@ public class RecordingEngine : IRecordingEngine
 
     private void OnAudioLevelTick()
     {
-        // Real-time audio VU meter readings directly from Windows sound hardware
+        // Real-time audio VU meter readings directly from Windows sound hardware with Gain & Gate applied
         var (sysLevel, micLevel) = _audioMonitor.GetCurrentLevels(
             _monitorSpeaker,
             _monitorSpeakerVolume,
+            _monitorSpeakerGainDb,
             _monitorMic,
-            _monitorMicVolume
+            _monitorMicVolume,
+            _monitorMicGainDb,
+            _monitorMicNoiseGate,
+            _monitorMicNoiseGateThresholdDb
         );
 
         AudioLevelsUpdated?.Invoke(sysLevel, micLevel);

@@ -39,6 +39,19 @@ public class RecordingConfig
     public int MicrophoneVolume { get; set; } = 90;   // 0 - 100%
     public AudioTrackMode AudioTrackMode { get; set; } = AudioTrackMode.MixToSingleTrack;
 
+    // Audio Processing: Sync Offset (Delay in ms) & Gain (dB)
+    public int SpeakerSyncOffsetMs { get; set; } = 0;   // -500 to +1000 ms
+    public double SpeakerGainDb { get; set; } = 0.0;    // -30.0 to +30.0 dB
+    public int MicSyncOffsetMs { get; set; } = 0;       // -500 to +1000 ms
+    public double MicGainDb { get; set; } = 0.0;        // -30.0 to +30.0 dB
+
+    // Studio & AI Noise Suppression (RNNoise / Noise Gate / High-Pass)
+    public bool MicNoiseSuppression { get; set; } = true;
+    public NoiseSuppressionEngine MicNoiseEngine { get; set; } = NoiseSuppressionEngine.RNNoise;
+    public bool MicNoiseGate { get; set; } = false;
+    public double MicNoiseGateThresholdDb { get; set; } = -36.0; // -60.0 to -20.0 dB
+    public bool MicHighPassFilter { get; set; } = true;
+
     // OBS-Style Multi-Track Audio Matrix
     // Speaker Routing to Track 1, 2, 3
     public bool SpeakerTrack1 { get; set; } = true;
