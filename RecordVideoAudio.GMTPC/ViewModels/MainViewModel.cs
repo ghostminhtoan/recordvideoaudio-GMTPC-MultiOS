@@ -1398,11 +1398,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         if (File.Exists(savedFile))
         {
             var fi = new FileInfo(savedFile);
-            StatusMessage = $"{_loc.GetText("SavedTo")} {savedFile} ({fi.Length / (1024.0 * 1024.0):F2} MB)";
+            string extra = !string.IsNullOrEmpty(_engine.LastErrorMessage) ? $" [{_engine.LastErrorMessage}]" : "";
+            StatusMessage = $"{_loc.GetText("SavedTo")} {savedFile} ({fi.Length / (1024.0 * 1024.0):F2} MB){extra}";
         }
         else
         {
-            StatusMessage = $"{_loc.GetText("SavedTo")} {savedFile}";
+            string err = !string.IsNullOrEmpty(_engine.LastErrorMessage) ? $" (Chi tiết: {_engine.LastErrorMessage})" : "";
+            StatusMessage = $"⚠️ Không tìm thấy file: {savedFile}{err}";
         }
     }
 

@@ -20,6 +20,7 @@ public interface IEncoderPipelineService
     string? FindFFmpegExecutable();
     string? GetDetectedAudioDevice();
     string? GetDetectedWebcamDevice();
+    bool IsNvencSupported();
 }
 
 public class FFmpegPipelineService : IEncoderPipelineService
@@ -27,6 +28,7 @@ public class FFmpegPipelineService : IEncoderPipelineService
     private static string? _cachedAudioDevice = null;
     private static string? _cachedWebcamDevice = null;
     private static bool _devicesQueried = false;
+    private static bool? _cachedNvencAvailable = null;
 
     public string GetOutputExtension(ContainerFormat format) => format switch
     {
@@ -130,6 +132,46 @@ public class FFmpegPipelineService : IEncoderPipelineService
         return _cachedWebcamDevice;
     }
 
+    public bool IsNvencSupported()
+    {
+        if (_cachedNvencAvailable.HasValue) return _cachedNvencAvailable.Value;
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            _cachedNvencAvailable = false;
+            return false;
+        }
+
+        string? ffmpeg = FindFFmpegExecutable();
+        if (string.IsNullOrEmpty(ffmpeg))
+        {
+            _cachedNvencAvailable = false;
+            return false;
+        }
+
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = ffmpeg,
+                Arguments = "-f lavfi -i testsrc=duration=0.1:size=256x256:rate=30 -c:v h264_nvenc -f null -",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardError = true
+            };
+            using var p = Process.Start(psi);
+            if (p != null)
+            {
+                p.WaitForExit(1500);
+                _cachedNvencAvailable = (p.ExitCode == 0);
+                return _cachedNvencAvailable.Value;
+            }
+        }
+        catch { }
+
+        _cachedNvencAvailable = false;
+        return false;
+    }
+
     public string BuildCommandLine(RecordingConfig config, string outputPath)
     {
         return $"ffmpeg {BuildArguments(config, outputPath, false)}";
@@ -149,18 +191,18 @@ public class FFmpegPipelineService : IEncoderPipelineService
                 case CaptureSourceType.CustomArea:
                     int w = Math.Max(2, (config.AreaWidth / 2) * 2); // ensure even number
                     int h = Math.Max(2, (config.AreaHeight / 2) * 2);
-                    sb.Append($"-f gdigrab -framerate {config.Fps} -draw_mouse {dm} -offset_x {config.AreaX} -offset_y {config.AreaY} -video_size {w}x{h} -i desktop ");
+                    sb.Append($"-f gdigrab -framerate {config.Fps} -draw_mouse {dm} -offset_x {config.AreaX} -offset_y {config.AreaY} -video_size {w}x{h} -i desktop -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\" ");
                     break;
 
                 case CaptureSourceType.ActiveWindow:
                     if (!string.IsNullOrWhiteSpace(config.SelectedWindowTitle))
                     {
                         string safeTitle = config.SelectedWindowTitle.Replace("\"", "\\\"");
-                        sb.Append($"-f gdigrab -framerate {config.Fps} -draw_mouse {dm} -i title=\"{safeTitle}\" ");
+                        sb.Append($"-f gdigrab -framerate {config.Fps} -draw_mouse {dm} -i title=\"{safeTitle}\" -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\" ");
                     }
                     else
                     {
-                        sb.Append($"-f gdigrab -framerate {config.Fps} -draw_mouse {dm} -i desktop ");
+                        sb.Append($"-f gdigrab -framerate {config.Fps} -draw_mouse {dm} -i desktop -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\" ");
                     }
                     break;
 
@@ -188,18 +230,18 @@ public class FFmpegPipelineService : IEncoderPipelineService
 
                     sb.Append($"-f gdigrab -framerate {config.Fps} -draw_mouse {dm} -i desktop ");
                     sb.Append($"-f dshow -i video=\"{webcam}\" ");
-                    sb.Append($"-filter_complex \"[1:v]fps={config.Fps},scale={camW}:{camH}[cam];[0:v][cam]overlay={overlayPos}[vout]\" -map \"[vout]\" ");
+                    sb.Append($"-filter_complex \"[0:v]scale=trunc(iw/2)*2:trunc(ih/2)*2[vbase];[1:v]fps={config.Fps},scale={camW}:{camH}[cam];[vbase][cam]overlay={overlayPos}[vout]\" -map \"[vout]\" ");
                     break;
 
                 case CaptureSourceType.FullScreen:
                 default:
-                    sb.Append($"-f gdigrab -framerate {config.Fps} -draw_mouse {dm} -i desktop ");
+                    sb.Append($"-f gdigrab -framerate {config.Fps} -draw_mouse {dm} -i desktop -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\" ");
                     break;
             }
         }
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
-            sb.Append($"-f x11grab -framerate {config.Fps} -draw_mouse {dm} -i :0.0 ");
+            sb.Append($"-f x11grab -framerate {config.Fps} -draw_mouse {dm} -i :0.0 -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\" ");
         }
         else
         {
@@ -207,74 +249,90 @@ public class FFmpegPipelineService : IEncoderPipelineService
         }
 
         // 2. Video Codec
-        string videoEncoder = config.VideoCodec switch
+        string videoEncoder;
+        if (config.VideoCodec == VideoCodecType.HEVC)
         {
-            VideoCodecType.H264 => config.HwAcceleration switch
-            {
-                HwAccelType.NVENC => "h264_nvenc",
-                HwAccelType.QSV => "h264_qsv",
-                HwAccelType.AMF => "h264_amf",
-                HwAccelType.VAAPI => "h264_vaapi",
-                HwAccelType.MediaCodec => "h264_mediacodec",
-                _ => "h264_nvenc"
-            },
-            VideoCodecType.HEVC => config.HwAcceleration switch
+            videoEncoder = config.HwAcceleration switch
             {
                 HwAccelType.NVENC => "hevc_nvenc",
                 HwAccelType.QSV => "hevc_qsv",
                 HwAccelType.AMF => "hevc_amf",
                 HwAccelType.VAAPI => "hevc_vaapi",
                 HwAccelType.MediaCodec => "hevc_mediacodec",
-                _ => "hevc_nvenc"
-            },
-            _ => "h264_nvenc"
-        };
+                HwAccelType.SoftwareCPU => RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "hevc_mf" : "libx265",
+                _ => RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? (IsNvencSupported() ? "hevc_nvenc" : "hevc_mf") : "libx265"
+            };
+        }
+        else
+        {
+            videoEncoder = config.HwAcceleration switch
+            {
+                HwAccelType.NVENC => "h264_nvenc",
+                HwAccelType.QSV => "h264_qsv",
+                HwAccelType.AMF => "h264_amf",
+                HwAccelType.VAAPI => "h264_vaapi",
+                HwAccelType.MediaCodec => "h264_mediacodec",
+                HwAccelType.SoftwareCPU => RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "h264_mf" : "libx264",
+                _ => RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? (IsNvencSupported() ? "h264_nvenc" : "h264_mf") : "libx264"
+            };
+        }
         sb.Append($"-c:v {videoEncoder} ");
 
         // 3. Preset
-        string preset = config.Preset.ToString().ToLowerInvariant();
-        sb.Append($"-preset {preset} ");
+        bool isMf = videoEncoder.Contains("_mf", StringComparison.OrdinalIgnoreCase);
+        if (!isMf)
+        {
+            string preset = config.Preset.ToString().ToLowerInvariant();
+            sb.Append($"-preset {preset} ");
+        }
 
         // 4. Rate Control Modes
         bool isNvenc = videoEncoder.Contains("nvenc", StringComparison.OrdinalIgnoreCase);
-        switch (config.RateControl)
+        if (isMf)
         {
-            case RateControlMode.CRF:
-                if (isNvenc)
-                {
-                    sb.Append($"-cq {config.CrfValue} -qmin {Math.Max(0, config.CrfValue - 3)} -qmax {Math.Min(51, config.CrfValue + 3)} ");
-                }
-                else
-                {
-                    sb.Append($"-crf {config.CrfValue} ");
-                }
-                break;
+            sb.Append($"-b:v {config.BitrateKbps}k ");
+        }
+        else
+        {
+            switch (config.RateControl)
+            {
+                case RateControlMode.CRF:
+                    if (isNvenc)
+                    {
+                        sb.Append($"-cq {config.CrfValue} -qmin {Math.Max(0, config.CrfValue - 3)} -qmax {Math.Min(51, config.CrfValue + 3)} ");
+                    }
+                    else
+                    {
+                        sb.Append($"-crf {config.CrfValue} ");
+                    }
+                    break;
 
-            case RateControlMode.CQP:
-                if (isNvenc)
-                {
-                    sb.Append($"-rc constqp -qp {config.CqpValue} ");
-                }
-                else
-                {
-                    sb.Append($"-qp {config.CqpValue} ");
-                }
-                break;
+                case RateControlMode.CQP:
+                    if (isNvenc)
+                    {
+                        sb.Append($"-rc constqp -qp {config.CqpValue} ");
+                    }
+                    else
+                    {
+                        sb.Append($"-qp {config.CqpValue} ");
+                    }
+                    break;
 
-            case RateControlMode.CBR:
-                sb.Append($"-b:v {config.BitrateKbps}k -minrate {config.BitrateKbps}k -maxrate {config.BitrateKbps}k -bufsize {config.BitrateKbps * 2}k ");
-                break;
+                case RateControlMode.CBR:
+                    sb.Append($"-b:v {config.BitrateKbps}k -minrate {config.BitrateKbps}k -maxrate {config.BitrateKbps}k -bufsize {config.BitrateKbps * 2}k ");
+                    break;
 
-            case RateControlMode.VBR:
-                sb.Append($"-b:v {config.BitrateKbps}k -maxrate {config.MaxBitrateKbps}k -bufsize {config.MaxBitrateKbps * 2}k ");
-                break;
+                case RateControlMode.VBR:
+                    sb.Append($"-b:v {config.BitrateKbps}k -maxrate {config.MaxBitrateKbps}k -bufsize {config.MaxBitrateKbps * 2}k ");
+                    break;
+            }
         }
 
         // Pixel format
         sb.Append("-pix_fmt yuv420p ");
 
-        // 5. Container Format Flags
-        if (config.Format == ContainerFormat.MP4)
+        // 5. Container Format Flags (Only for final MP4 container, never on intermediate raw recording)
+        if (config.Format == ContainerFormat.MP4 && !videoOnly)
         {
             sb.Append("-movflags +faststart ");
         }
@@ -294,12 +352,12 @@ public class FFmpegPipelineService : IEncoderPipelineService
         string audioEncoder = config.AudioCodec switch
         {
             AudioCodecType.AAC => "aac -b:a 192k",
-            AudioCodecType.MP3 => "mp3_mf -b:a 192k",
+            AudioCodecType.MP3 => RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "mp3_mf -b:a 192k" : "libmp3lame -b:a 192k",
             _ => "aac -b:a 192k"
         };
 
-        bool hasSpeaker = !string.IsNullOrEmpty(speakerWav) && File.Exists(speakerWav);
-        bool hasMic = !string.IsNullOrEmpty(micWav) && File.Exists(micWav);
+        bool hasSpeaker = !string.IsNullOrEmpty(speakerWav) && File.Exists(speakerWav) && new FileInfo(speakerWav).Length > 1000;
+        bool hasMic = !string.IsNullOrEmpty(micWav) && File.Exists(micWav) && new FileInfo(micWav).Length > 1000;
 
         // Track routing matrix flags
         bool spk1 = hasSpeaker && config.SpeakerTrack1;
@@ -455,7 +513,7 @@ public class FFmpegPipelineService : IEncoderPipelineService
         if (spk1 && mic1)
         {
             string outLbl = "aout1";
-            filterParts.Add($"[{spkLabels[spkUsageIdx++]}][{micLabels[micUsageIdx++]}]amix=inputs=2:duration=first:dropout_transition=2[{outLbl}]");
+            filterParts.Add($"[{spkLabels[spkUsageIdx++]}][{micLabels[micUsageIdx++]}]amix=inputs=2:duration=longest:dropout_transition=0[{outLbl}]");
             outputTracks.Add((outLbl, "Track 1: Mix (Speaker + Mic)"));
         }
         else if (spk1)
@@ -471,7 +529,7 @@ public class FFmpegPipelineService : IEncoderPipelineService
         if (spk2 && mic2)
         {
             string outLbl = "aout2";
-            filterParts.Add($"[{spkLabels[spkUsageIdx++]}][{micLabels[micUsageIdx++]}]amix=inputs=2:duration=first:dropout_transition=2[{outLbl}]");
+            filterParts.Add($"[{spkLabels[spkUsageIdx++]}][{micLabels[micUsageIdx++]}]amix=inputs=2:duration=longest:dropout_transition=0[{outLbl}]");
             outputTracks.Add((outLbl, "Track 2: Mix (Speaker + Mic)"));
         }
         else if (spk2)
@@ -487,7 +545,7 @@ public class FFmpegPipelineService : IEncoderPipelineService
         if (spk3 && mic3)
         {
             string outLbl = "aout3";
-            filterParts.Add($"[{spkLabels[spkUsageIdx++]}][{micLabels[micUsageIdx++]}]amix=inputs=2:duration=first:dropout_transition=2[{outLbl}]");
+            filterParts.Add($"[{spkLabels[spkUsageIdx++]}][{micLabels[micUsageIdx++]}]amix=inputs=2:duration=longest:dropout_transition=0[{outLbl}]");
             outputTracks.Add((outLbl, "Track 3: Mix (Speaker + Mic)"));
         }
         else if (spk3)

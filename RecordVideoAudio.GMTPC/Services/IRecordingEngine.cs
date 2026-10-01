@@ -286,9 +286,8 @@ public class RecordingEngine : IRecordingEngine
         {
             try
             {
-                // Intermediate video file
-                string ext = _pipelineService.GetOutputExtension(config.Format);
-                _tempVideoPath = Path.Combine(outDir, $"temp_video_{Guid.NewGuid():N}{ext}");
+                // Intermediate streamable container: Always use MKV for temporary video recording to prevent moov atom corruption on crash/kill
+                _tempVideoPath = Path.Combine(outDir, $"temp_video_{Guid.NewGuid():N}.mkv");
 
                 string arguments = _pipelineService.BuildArguments(config, _tempVideoPath, true);
 
@@ -303,8 +302,15 @@ public class RecordingEngine : IRecordingEngine
                     WorkingDirectory = outDir
                 };
 
-                _ffmpegProcess = new Process { StartInfo = psi };
+                _ffmpegProcess = new Process { StartInfo = psi, EnableRaisingEvents = true };
                 _ffmpegProcess.ErrorDataReceived += OnFFmpegErrorDataReceived;
+                _ffmpegProcess.Exited += (s, e) =>
+                {
+                    if (CurrentState == RecordingState.Recording)
+                    {
+                        LastErrorMessage = "Cảnh báo: Tiến trình ghi hình FFmpeg đã dừng đột ngột.";
+                    }
+                };
 
                 _ffmpegProcess.Start();
                 _ffmpegProcess.BeginErrorReadLine();
@@ -358,7 +364,7 @@ public class RecordingEngine : IRecordingEngine
         CurrentState = RecordingState.Finalizing;
         StateChanged?.Invoke(CurrentState);
 
-        // 1. Stop FFmpeg Video Process gracefully
+        // 1. Stop FFmpeg Video Process gracefully with 15s timeout and active polling
         if (_ffmpegProcess != null && !_ffmpegProcess.HasExited)
         {
             try
@@ -366,8 +372,17 @@ public class RecordingEngine : IRecordingEngine
                 await _ffmpegProcess.StandardInput.WriteLineAsync("q");
                 await _ffmpegProcess.StandardInput.FlushAsync();
 
-                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-                await _ffmpegProcess.WaitForExitAsync(cts.Token);
+                var stopWatch = Stopwatch.StartNew();
+                while (!_ffmpegProcess.HasExited && stopWatch.ElapsedMilliseconds < 15000)
+                {
+                    await Task.Delay(100);
+                }
+
+                if (!_ffmpegProcess.HasExited)
+                {
+                    try { _ffmpegProcess.Kill(true); } catch { }
+                    await Task.Delay(200);
+                }
             }
             catch
             {
@@ -393,8 +408,11 @@ public class RecordingEngine : IRecordingEngine
         string finalPath = CurrentStats.OutputFilePath;
         string? ffmpegPath = _pipelineService.FindFFmpegExecutable();
 
-        // 3. Mux Video + Audio using FFmpeg (lossless video copy, ultra-fast ~0.5s)
-        if (File.Exists(_tempVideoPath) && !string.IsNullOrEmpty(ffmpegPath))
+        bool hasValidTempVideo = File.Exists(_tempVideoPath) && new FileInfo(_tempVideoPath).Length > 0;
+        bool muxSuccess = false;
+
+        // 3. Mux Video + Audio using FFmpeg (lossless video stream copy, ultra-fast ~0.5s)
+        if (hasValidTempVideo && !string.IsNullOrEmpty(ffmpegPath))
         {
             try
             {
@@ -407,35 +425,106 @@ public class RecordingEngine : IRecordingEngine
                     FileName = ffmpegPath,
                     Arguments = muxArgs,
                     UseShellExecute = false,
-                    CreateNoWindow = true
+                    CreateNoWindow = true,
+                    RedirectStandardError = true
                 };
 
                 using var muxProcess = Process.Start(muxPsi);
                 if (muxProcess != null)
                 {
+                    string muxErr = await muxProcess.StandardError.ReadToEndAsync();
                     await muxProcess.WaitForExitAsync();
+
+                    if (muxProcess.ExitCode == 0 && File.Exists(finalPath) && new FileInfo(finalPath).Length > 1024)
+                    {
+                        muxSuccess = true;
+                    }
+                    else
+                    {
+                        LastErrorMessage = $"Muxing không thành công: {muxErr}";
+                    }
                 }
             }
-            catch { }
-            finally
+            catch (Exception ex)
             {
-                // Clean temporary files
-                try { if (File.Exists(_tempVideoPath)) File.Delete(_tempVideoPath); } catch { }
-                try { if (!string.IsNullOrEmpty(speakerWav) && File.Exists(speakerWav)) File.Delete(speakerWav); } catch { }
-                try { if (!string.IsNullOrEmpty(micWav) && File.Exists(micWav)) File.Delete(micWav); } catch { }
+                LastErrorMessage = $"Ngoại lệ khi Muxing: {ex.Message}";
             }
         }
-        else if (File.Exists(_tempVideoPath))
+
+        // 4. Multi-Tier Emergency Rescue Pipeline (Bảo vệ dữ liệu người dùng)
+        if (!muxSuccess && hasValidTempVideo)
         {
             try
             {
-                if (File.Exists(finalPath)) File.Delete(finalPath);
-                File.Move(_tempVideoPath, finalPath);
+                // Cấp cứu 1: Thử remux copy chỉ video sang finalPath (loại bỏ track audio bị lỗi)
+                if (!string.IsNullOrEmpty(ffmpegPath))
+                {
+                    if (File.Exists(finalPath)) File.Delete(finalPath);
+                    string faststart = ActiveConfig.Format == ContainerFormat.MP4 ? "-movflags +faststart " : "";
+                    string rescueArgs = $"-y -i \"{_tempVideoPath}\" -c:v copy {faststart}\"{finalPath}\"";
+
+                    var rescuePsi = new ProcessStartInfo
+                    {
+                        FileName = ffmpegPath,
+                        Arguments = rescueArgs,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+
+                    using var rescueProcess = Process.Start(rescuePsi);
+                    if (rescueProcess != null)
+                    {
+                        await rescueProcess.WaitForExitAsync();
+                        if (rescueProcess.ExitCode == 0 && File.Exists(finalPath) && new FileInfo(finalPath).Length > 1024)
+                        {
+                            muxSuccess = true;
+                            LastErrorMessage = "Đã cứu hộ video thành công (loại bỏ track âm thanh bị lỗi).";
+                        }
+                    }
+                }
+
+                // Cấp cứu 2: Nếu remux vẫn thất bại, copy trực tiếp file tạm MKV sang thư mục đích
+                if (!muxSuccess)
+                {
+                    string outDir = Path.GetDirectoryName(finalPath) ?? AppDomain.CurrentDomain.BaseDirectory;
+                    string rescueFileName = $"RESCUED_{Path.GetFileNameWithoutExtension(finalPath)}.mkv";
+                    string rescueDestPath = Path.Combine(outDir, rescueFileName);
+
+                    File.Copy(_tempVideoPath, rescueDestPath, true);
+                    finalPath = rescueDestPath;
+                    CurrentStats.OutputFilePath = finalPath;
+                    muxSuccess = true;
+                    LastErrorMessage = $"Đã bảo toàn nguyên vẹn file video tại: {rescueFileName}";
+                }
             }
-            catch { }
+            catch (Exception rescueEx)
+            {
+                LastErrorMessage = $"Không thể cứu hộ file tạm: {rescueEx.Message}";
+            }
+        }
+        else if (!hasValidTempVideo && File.Exists(finalPath) && new FileInfo(finalPath).Length > 1024)
+        {
+            muxSuccess = true;
         }
 
-        // 4. Update file statistics
+        // 5. Cleanup Gate: CHỈ XÓA FILE TẠM KHI ĐÃ CÓ FILE ĐÍCH HOẶC FILE CỨU HỘ ĐẠT CHUẨN!
+        if (muxSuccess)
+        {
+            try { if (File.Exists(_tempVideoPath)) File.Delete(_tempVideoPath); } catch { }
+            try { if (!string.IsNullOrEmpty(speakerWav) && File.Exists(speakerWav)) File.Delete(speakerWav); } catch { }
+            try { if (!string.IsNullOrEmpty(micWav) && File.Exists(micWav)) File.Delete(micWav); } catch { }
+        }
+        else
+        {
+            // Trường hợp cực hiếm: giữ nguyên file tạm để người dùng không mất dữ liệu
+            if (File.Exists(_tempVideoPath))
+            {
+                finalPath = _tempVideoPath;
+                CurrentStats.OutputFilePath = finalPath;
+            }
+        }
+
+        // 6. Cập nhật kích thước file thực tế
         if (File.Exists(finalPath))
         {
             var fi = new FileInfo(finalPath);
