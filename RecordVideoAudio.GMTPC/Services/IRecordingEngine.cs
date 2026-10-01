@@ -246,7 +246,7 @@ public class RecordingEngine : IRecordingEngine
             {
                 if (File.Exists(finalPath)) File.Delete(finalPath);
 
-                string muxArgs = _pipelineService.BuildMuxArguments(_tempVideoPath, speakerWav, micWav, finalPath, ActiveConfig.AudioCodec, ActiveConfig.Format, ActiveConfig.AudioTrackMode);
+                string muxArgs = _pipelineService.BuildMuxArguments(_tempVideoPath, speakerWav, micWav, finalPath, ActiveConfig);
 
                 var muxPsi = new ProcessStartInfo
                 {

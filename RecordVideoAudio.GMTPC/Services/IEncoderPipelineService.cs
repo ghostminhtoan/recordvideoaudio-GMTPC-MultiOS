@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -12,6 +13,7 @@ public interface IEncoderPipelineService
 {
     string BuildCommandLine(RecordingConfig config, string outputPath);
     string BuildArguments(RecordingConfig config, string outputPath, bool videoOnly = false);
+    string BuildMuxArguments(string videoPath, string? speakerWav, string? micWav, string outputPath, RecordingConfig config);
     string BuildMuxArguments(string videoPath, string? speakerWav, string? micWav, string outputPath, AudioCodecType audioCodec, ContainerFormat format, AudioTrackMode audioTrackMode = AudioTrackMode.MixToSingleTrack);
     string GetOutputExtension(ContainerFormat format);
     string GenerateDefaultFileName(ContainerFormat format);
@@ -280,61 +282,204 @@ public class FFmpegPipelineService : IEncoderPipelineService
         return sb.ToString();
     }
 
-    public string BuildMuxArguments(string videoPath, string? speakerWav, string? micWav, string outputPath, AudioCodecType audioCodec, ContainerFormat format, AudioTrackMode audioTrackMode = AudioTrackMode.MixToSingleTrack)
+    public string BuildMuxArguments(string videoPath, string? speakerWav, string? micWav, string outputPath, RecordingConfig config)
     {
         var sb = new StringBuilder();
         sb.Append("-y ");
         sb.Append($"-i \"{videoPath}\" ");
 
-        string audioEncoder = audioCodec switch
+        string audioEncoder = config.AudioCodec switch
         {
             AudioCodecType.AAC => "aac -b:a 192k",
             AudioCodecType.MP3 => "mp3_mf -b:a 192k",
             _ => "aac -b:a 192k"
         };
 
-        if (!string.IsNullOrEmpty(speakerWav) && !string.IsNullOrEmpty(micWav))
+        bool hasSpeaker = !string.IsNullOrEmpty(speakerWav) && File.Exists(speakerWav);
+        bool hasMic = !string.IsNullOrEmpty(micWav) && File.Exists(micWav);
+
+        // Track routing matrix flags
+        bool spk1 = hasSpeaker && config.SpeakerTrack1;
+        bool spk2 = hasSpeaker && config.SpeakerTrack2;
+        bool spk3 = hasSpeaker && config.SpeakerTrack3;
+
+        bool mic1 = hasMic && config.MicTrack1;
+        bool mic2 = hasMic && config.MicTrack2;
+        bool mic3 = hasMic && config.MicTrack3;
+
+        // If no tracks selected at all, fallback to default behavior
+        if (!spk1 && !spk2 && !spk3 && !mic1 && !mic2 && !mic3)
+        {
+            if (hasSpeaker && hasMic)
+            {
+                spk1 = true; mic1 = true;
+                mic2 = true;
+                spk3 = true;
+            }
+            else if (hasSpeaker)
+            {
+                spk1 = true;
+            }
+            else if (hasMic)
+            {
+                mic1 = true;
+            }
+        }
+
+        int spkCount = (spk1 ? 1 : 0) + (spk2 ? 1 : 0) + (spk3 ? 1 : 0);
+        int micCount = (mic1 ? 1 : 0) + (mic2 ? 1 : 0) + (mic3 ? 1 : 0);
+
+        if (spkCount == 0 && micCount == 0)
+        {
+            sb.Append("-c:v copy ");
+            if (config.Format == ContainerFormat.MP4) sb.Append("-movflags +faststart ");
+            sb.Append($"\"{outputPath}\"");
+            return sb.ToString();
+        }
+
+        int currentInputIndex = 1;
+        int? spkInputIndex = null;
+        int? micInputIndex = null;
+
+        if (spkCount > 0)
         {
             sb.Append($"-i \"{speakerWav}\" ");
+            spkInputIndex = currentInputIndex++;
+        }
+
+        if (micCount > 0)
+        {
             sb.Append($"-i \"{micWav}\" ");
-            if (audioTrackMode == AudioTrackMode.SeparateTracks)
+            micInputIndex = currentInputIndex++;
+        }
+
+        var filterParts = new List<string>();
+        var spkLabels = new List<string>();
+        var micLabels = new List<string>();
+
+        // Generate split filters for speaker if needed
+        if (spkInputIndex.HasValue)
+        {
+            if (spkCount == 1)
             {
-                // Multi-track audio: Track 1 = System Audio, Track 2 = Microphone
-                sb.Append("-map 0:v -map 1:a -map 2:a ");
-                sb.Append($"-c:v copy -c:a:0 {audioEncoder} -metadata:s:a:0 title=\"System Audio\" -c:a:1 {audioEncoder} -metadata:s:a:1 title=\"Microphone\" ");
+                string lbl = "spk_s0";
+                filterParts.Add($"[{spkInputIndex.Value}:a]anull[{lbl}]");
+                spkLabels.Add(lbl);
             }
             else
             {
-                // Mix to single track
-                sb.Append("-filter_complex \"[1:a][2:a]amix=inputs=2:duration=first:dropout_transition=2[aout]\" ");
-                sb.Append("-map 0:v ");
-                sb.Append("-map \"[aout]\" ");
-                sb.Append($"-c:v copy -c:a {audioEncoder} ");
+                var lbls = new List<string>();
+                for (int i = 0; i < spkCount; i++) lbls.Add($"spk_s{i}");
+                filterParts.Add($"[{spkInputIndex.Value}:a]asplit={spkCount}{string.Concat(lbls.ConvertAll(l => $"[{l}]"))}");
+                spkLabels.AddRange(lbls);
             }
         }
-        else if (!string.IsNullOrEmpty(speakerWav))
+
+        // Generate split filters for mic if needed
+        if (micInputIndex.HasValue)
         {
-            sb.Append($"-i \"{speakerWav}\" ");
-            sb.Append("-map 0:v -map 1:a ");
-            sb.Append($"-c:v copy -c:a {audioEncoder} ");
-        }
-        else if (!string.IsNullOrEmpty(micWav))
-        {
-            sb.Append($"-i \"{micWav}\" ");
-            sb.Append("-map 0:v -map 1:a ");
-            sb.Append($"-c:v copy -c:a {audioEncoder} ");
-        }
-        else
-        {
-            sb.Append("-c:v copy ");
+            if (micCount == 1)
+            {
+                string lbl = "mic_s0";
+                filterParts.Add($"[{micInputIndex.Value}:a]anull[{lbl}]");
+                micLabels.Add(lbl);
+            }
+            else
+            {
+                var lbls = new List<string>();
+                for (int i = 0; i < micCount; i++) lbls.Add($"mic_s{i}");
+                filterParts.Add($"[{micInputIndex.Value}:a]asplit={micCount}{string.Concat(lbls.ConvertAll(l => $"[{l}]"))}");
+                micLabels.AddRange(lbls);
+            }
         }
 
-        if (format == ContainerFormat.MP4)
+        int spkUsageIdx = 0;
+        int micUsageIdx = 0;
+        var outputTracks = new List<(string mapLabel, string title)>();
+
+        // Track 1
+        if (spk1 && mic1)
+        {
+            string outLbl = "aout1";
+            filterParts.Add($"[{spkLabels[spkUsageIdx++]}][{micLabels[micUsageIdx++]}]amix=inputs=2:duration=first:dropout_transition=2[{outLbl}]");
+            outputTracks.Add((outLbl, "Track 1: Mix (Speaker + Mic)"));
+        }
+        else if (spk1)
+        {
+            outputTracks.Add((spkLabels[spkUsageIdx++], "Track 1: System Audio"));
+        }
+        else if (mic1)
+        {
+            outputTracks.Add((micLabels[micUsageIdx++], "Track 1: Microphone"));
+        }
+
+        // Track 2
+        if (spk2 && mic2)
+        {
+            string outLbl = "aout2";
+            filterParts.Add($"[{spkLabels[spkUsageIdx++]}][{micLabels[micUsageIdx++]}]amix=inputs=2:duration=first:dropout_transition=2[{outLbl}]");
+            outputTracks.Add((outLbl, "Track 2: Mix (Speaker + Mic)"));
+        }
+        else if (spk2)
+        {
+            outputTracks.Add((spkLabels[spkUsageIdx++], "Track 2: System Audio"));
+        }
+        else if (mic2)
+        {
+            outputTracks.Add((micLabels[micUsageIdx++], "Track 2: Microphone"));
+        }
+
+        // Track 3
+        if (spk3 && mic3)
+        {
+            string outLbl = "aout3";
+            filterParts.Add($"[{spkLabels[spkUsageIdx++]}][{micLabels[micUsageIdx++]}]amix=inputs=2:duration=first:dropout_transition=2[{outLbl}]");
+            outputTracks.Add((outLbl, "Track 3: Mix (Speaker + Mic)"));
+        }
+        else if (spk3)
+        {
+            outputTracks.Add((spkLabels[spkUsageIdx++], "Track 3: System Audio"));
+        }
+        else if (mic3)
+        {
+            outputTracks.Add((micLabels[micUsageIdx++], "Track 3: Microphone"));
+        }
+
+        if (filterParts.Count > 0)
+        {
+            sb.Append($"-filter_complex \"{string.Join("; ", filterParts)}\" ");
+        }
+
+        sb.Append("-map 0:v -c:v copy ");
+
+        for (int i = 0; i < outputTracks.Count; i++)
+        {
+            sb.Append($"-map \"[{outputTracks[i].mapLabel}]\" ");
+            sb.Append($"-c:a:{i} {audioEncoder} -metadata:s:a:{i} title=\"{outputTracks[i].title}\" ");
+        }
+
+        if (config.Format == ContainerFormat.MP4)
         {
             sb.Append("-movflags +faststart ");
         }
 
         sb.Append($"\"{outputPath}\"");
         return sb.ToString();
+    }
+
+    public string BuildMuxArguments(string videoPath, string? speakerWav, string? micWav, string outputPath, AudioCodecType audioCodec, ContainerFormat format, AudioTrackMode audioTrackMode = AudioTrackMode.MixToSingleTrack)
+    {
+        var cfg = new RecordingConfig
+        {
+            AudioCodec = audioCodec,
+            Format = format,
+            SpeakerTrack1 = true,
+            MicTrack1 = true,
+            SpeakerTrack2 = false,
+            MicTrack2 = audioTrackMode == AudioTrackMode.SeparateTracks,
+            SpeakerTrack3 = audioTrackMode == AudioTrackMode.SeparateTracks,
+            MicTrack3 = false
+        };
+        return BuildMuxArguments(videoPath, speakerWav, micWav, outputPath, cfg);
     }
 }

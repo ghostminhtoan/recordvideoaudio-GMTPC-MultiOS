@@ -293,10 +293,15 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Dual Audio Mixer -->
+                    <!-- Dual Audio Mixer with OBS Multi-Track Matrix -->
                     <Border Background="#131B2E" CornerRadius="10" Padding="14" BorderBrush="#1F2D4A" BorderThickness="1">
                         <StackPanel Spacing="12">
-                            <TextBlock Text="🎚️ BÀN TRỘN ÂM THANH KÉP (DUAL AUDIO MIXER)" FontWeight="Bold" FontSize="12" Foreground="#FFB800" />
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="🎚️ BÀN TRỘN ÂM THANH &amp; ĐỊNH TUYẾN TRACK OBS" FontWeight="Bold" FontSize="12" Foreground="#FFB800" VerticalAlignment="Center" />
+                                <Border Grid.Column="1" Background="#1A00F0FF" CornerRadius="4" Padding="6,2" BorderBrush="#00F0FF" BorderThickness="1">
+                                    <TextBlock Text="OBS MATRIX" FontSize="10" FontWeight="Bold" Foreground="#00F0FF" />
+                                </Border>
+                            </Grid>
 
                             <!-- Channel 1: System Audio Loopback -->
                             <Border Background="#0D1322" CornerRadius="8" Padding="10" BorderBrush="#1F2D4A" BorderThickness="1">
@@ -311,6 +316,19 @@
                                     <!-- VU Meter Bar -->
                                     <ProgressBar Minimum="0" Maximum="100" Value="{Binding SystemAudioLevel}" Height="6"
                                                  Foreground="#00E676" Background="#1E293B" CornerRadius="3" />
+
+                                    <!-- OBS Track Matrix for Speaker -->
+                                    <Grid ColumnDefinitions="Auto,*" Margin="0,4,0,0">
+                                        <TextBlock Text="Định tuyến Audio Track:" FontSize="10" Foreground="#A0AEC0" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                                            <CheckBox Content="Track 1" IsChecked="{Binding SpeakerTrack1}" FontSize="10" Foreground="#00F0FF" FontWeight="Bold"
+                                                      ToolTip.Tip="Phát tiếng Loa trong Track 1 (Mix cả 2)" />
+                                            <CheckBox Content="Track 2" IsChecked="{Binding SpeakerTrack2}" FontSize="10" Foreground="#A0AEC0"
+                                                      ToolTip.Tip="Phát tiếng Loa trong Track 2" />
+                                            <CheckBox Content="Track 3" IsChecked="{Binding SpeakerTrack3}" FontSize="10" Foreground="#00E676" FontWeight="Bold"
+                                                      ToolTip.Tip="Phát tiếng Loa riêng biệt trong Track 3 (System Audio độc lập)" />
+                                        </StackPanel>
+                                    </Grid>
                                 </StackPanel>
                             </Border>
 
@@ -327,26 +345,38 @@
                                     <!-- VU Meter Bar -->
                                     <ProgressBar Minimum="0" Maximum="100" Value="{Binding MicAudioLevel}" Height="6"
                                                  Foreground="#FFB800" Background="#1E293B" CornerRadius="3" />
+
+                                    <!-- OBS Track Matrix for Microphone -->
+                                    <Grid ColumnDefinitions="Auto,*" Margin="0,4,0,0">
+                                        <TextBlock Text="Định tuyến Audio Track:" FontSize="10" Foreground="#A0AEC0" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                                            <CheckBox Content="Track 1" IsChecked="{Binding MicTrack1}" FontSize="10" Foreground="#00F0FF" FontWeight="Bold"
+                                                      ToolTip.Tip="Phát tiếng Micro trong Track 1 (Mix cả 2)" />
+                                            <CheckBox Content="Track 2" IsChecked="{Binding MicTrack2}" FontSize="10" Foreground="#FFB800" FontWeight="Bold"
+                                                      ToolTip.Tip="Phát tiếng Micro riêng biệt trong Track 2 (Microphone độc lập)" />
+                                            <CheckBox Content="Track 3" IsChecked="{Binding MicTrack3}" FontSize="10" Foreground="#A0AEC0"
+                                                      ToolTip.Tip="Phát tiếng Micro trong Track 3" />
+                                        </StackPanel>
+                                    </Grid>
                                 </StackPanel>
                             </Border>
 
-                            <!-- Audio Track Allocation Mode (Multi-Track) -->
-                            <Border Background="#0D1322" CornerRadius="8" Padding="10" BorderBrush="#1F2D4A" BorderThickness="1">
-                                <StackPanel Spacing="4">
-                                    <TextBlock Text="Chế độ phân bổ Track âm thanh (Multi-Track):" FontSize="11" FontWeight="Bold" Foreground="#64B5F6" />
-                                    <ComboBox ItemsSource="{Binding AudioTrackModeList}" SelectedItem="{Binding SelectedAudioTrackMode}"
-                                              HorizontalAlignment="Stretch" />
-                                    <TextBlock Text="💡 Chọn 'SeparateTracks' để tách riêng Track tiếng Loa và Track Mic cho Premiere/CapCut."
-                                               FontSize="10" Foreground="#8892B0" TextWrapping="Wrap" />
+                            <!-- Track Matrix Legend -->
+                            <Border Background="#0D1322" CornerRadius="6" Padding="8,6" BorderBrush="#1F2D4A" BorderThickness="1">
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="📊 MA TRẬN TRACK XUẤT RA CHUẨN OBS STUDIO:" FontSize="10" FontWeight="Bold" Foreground="#64B5F6" />
+                                    <TextBlock Text="• Track 1: Trộn chung (Mix Loa + Mic) để xem trực tiếp không cần chọn luồng." FontSize="10" Foreground="#CBD5E1" />
+                                    <TextBlock Text="• Track 2: Chỉ tiếng Micro độc lập (Lọc tạp âm, lồng tiếng trong Premiere/CapCut)." FontSize="10" Foreground="#FFB800" />
+                                    <TextBlock Text="• Track 3: Chỉ tiếng Loa / Game / Âm thanh máy (Cân chỉnh volume nền độc lập)." FontSize="10" Foreground="#00E676" />
                                 </StackPanel>
                             </Border>
                         </StackPanel>
                     </Border>
 
-                    <!-- Utilities & Automation Deck -->
+                    <!-- Utilities & Customizable Global Hotkeys Deck -->
                     <Border Background="#131B2E" CornerRadius="10" Padding="14" BorderBrush="#1F2D4A" BorderThickness="1">
                         <StackPanel Spacing="10">
-                            <TextBlock Text="🛠️ TIỆN ÍCH &amp; TỰ ĐỘNG HÓA (UTILITIES &amp; HOTKEYS)" FontWeight="Bold" FontSize="12" Foreground="#00E676" />
+                            <TextBlock Text="⌨️ PHÍM TẮT TOÀN CỤC &amp; TIỆN ÍCH (GLOBAL SHORTCUTS)" FontWeight="Bold" FontSize="12" Foreground="#00E676" />
 
                             <Grid ColumnDefinitions="*,*">
                                 <CheckBox Grid.Column="0" Content="Hiện Mini-Bar khi quay" IsChecked="{Binding AutoShowMiniBar}"
@@ -364,11 +394,60 @@
                                 </StackPanel>
                             </Grid>
 
-                            <!-- Global Hotkeys Hint Badge -->
-                            <Border Background="#0D1322" CornerRadius="6" Padding="8,5" BorderBrush="#1F2D4A" BorderThickness="1">
-                                <TextBlock Text="⌨️ Phím tắt toàn cục: [F8] = Bắt đầu / Dừng  |  [F9] = Tạm dừng / Tiếp tục"
-                                           FontSize="10" FontWeight="SemiBold" Foreground="#00F0FF" HorizontalAlignment="Center" />
+                            <!-- Shortcut 1: Start / Stop Recording -->
+                            <Border Background="#0D1322" CornerRadius="8" Padding="10" BorderBrush="#1F2D4A" BorderThickness="1">
+                                <StackPanel Spacing="6">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Text="🔴 Phím tắt Bắt đầu / Dừng quay (Record / Stop):" FontSize="11" FontWeight="Bold" Foreground="#FF1744" VerticalAlignment="Center" />
+                                        <Border Grid.Column="1" Background="#22FF1744" CornerRadius="4" Padding="6,2">
+                                            <TextBlock Text="{Binding RecordKeyName, StringFormat='Phím: {0}'}" FontSize="10" FontWeight="Bold" Foreground="#FF5252" />
+                                        </Border>
+                                    </Grid>
+                                    <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto">
+                                        <CheckBox Grid.Column="0" Content="Ctrl" IsChecked="{Binding RecordCtrl}" FontSize="11" Foreground="#CBD5E1" Margin="0,0,6,0" />
+                                        <CheckBox Grid.Column="1" Content="Alt" IsChecked="{Binding RecordAlt}" FontSize="11" Foreground="#CBD5E1" Margin="0,0,6,0" />
+                                        <CheckBox Grid.Column="2" Content="Shift" IsChecked="{Binding RecordShift}" FontSize="11" Foreground="#CBD5E1" Margin="0,0,6,0" />
+                                        <CheckBox Grid.Column="3" Content="Win" IsChecked="{Binding RecordWin}" FontSize="11" Foreground="#CBD5E1" Margin="0,0,8,0" />
+                                        <TextBox x:Name="RecordKeyTextBox" Grid.Column="4" Text="{Binding RecordKeyName}"
+                                                 KeyDown="OnRecordKeyKeyDown" TextChanged="OnRecordKeyTextChanged"
+                                                 FontFamily="Consolas, Cascadia Code, Courier New" FontWeight="Bold" FontSize="11"
+                                                 Foreground="#00F0FF" Background="#0A0E1A" BorderBrush="#00F0FF" BorderThickness="1"
+                                                 CornerRadius="6" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                                                 ToolTip.Tip="Nhấp vào đây và bấm bất kỳ phím nào (D0-D9, NumPad0-NumPad9, A-Z, F1-F12, dấu câu...)" />
+                                        <Button Grid.Column="5" Content="Mặc định (D5)" Command="{Binding ResetRecordShortcutCommand}"
+                                                Background="#1E293B" Foreground="#8892B0" FontSize="10" Padding="8,4" CornerRadius="4" Margin="6,0,0,0" />
+                                    </Grid>
+                                </StackPanel>
                             </Border>
+
+                            <!-- Shortcut 2: Pause / Resume Recording -->
+                            <Border Background="#0D1322" CornerRadius="8" Padding="10" BorderBrush="#1F2D4A" BorderThickness="1">
+                                <StackPanel Spacing="6">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Text="⏸️ Phím tắt Tạm dừng / Tiếp tục (Pause / Resume):" FontSize="11" FontWeight="Bold" Foreground="#FFB800" VerticalAlignment="Center" />
+                                        <Border Grid.Column="1" Background="#22FFB800" CornerRadius="4" Padding="6,2">
+                                            <TextBlock Text="{Binding PauseKeyName, StringFormat='Phím: {0}'}" FontSize="10" FontWeight="Bold" Foreground="#FFD54F" />
+                                        </Border>
+                                    </Grid>
+                                    <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto">
+                                        <CheckBox Grid.Column="0" Content="Ctrl" IsChecked="{Binding PauseCtrl}" FontSize="11" Foreground="#CBD5E1" Margin="0,0,6,0" />
+                                        <CheckBox Grid.Column="1" Content="Alt" IsChecked="{Binding PauseAlt}" FontSize="11" Foreground="#CBD5E1" Margin="0,0,6,0" />
+                                        <CheckBox Grid.Column="2" Content="Shift" IsChecked="{Binding PauseShift}" FontSize="11" Foreground="#CBD5E1" Margin="0,0,6,0" />
+                                        <CheckBox Grid.Column="3" Content="Win" IsChecked="{Binding PauseWin}" FontSize="11" Foreground="#CBD5E1" Margin="0,0,8,0" />
+                                        <TextBox x:Name="PauseKeyTextBox" Grid.Column="4" Text="{Binding PauseKeyName}"
+                                                 KeyDown="OnPauseKeyKeyDown" TextChanged="OnPauseKeyTextChanged"
+                                                 FontFamily="Consolas, Cascadia Code, Courier New" FontWeight="Bold" FontSize="11"
+                                                 Foreground="#FFB800" Background="#0A0E1A" BorderBrush="#FFB800" BorderThickness="1"
+                                                 CornerRadius="6" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                                                 ToolTip.Tip="Nhấp vào đây và bấm bất kỳ phím nào (D0-D9, NumPad0-NumPad9, A-Z, F1-F12, dấu câu...)" />
+                                        <Button Grid.Column="5" Content="Mặc định (D8)" Command="{Binding ResetPauseShortcutCommand}"
+                                                Background="#1E293B" Foreground="#8892B0" FontSize="10" Padding="8,4" CornerRadius="4" Margin="6,0,0,0" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Text="💡 Tùy chỉnh tự do toàn bộ phím: Phân biệt tuyệt đối giữa dãy phím số trên (D0-D9) và bàn phím số phụ (NumPad0-NumPad9), chữ cái, phím chức năng F1-F12 và toàn bộ dấu câu."
+                                       FontSize="10" Foreground="#8892B0" TextWrapping="Wrap" />
                         </StackPanel>
                     </Border>
 

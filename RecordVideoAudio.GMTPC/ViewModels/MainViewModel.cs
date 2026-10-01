@@ -77,9 +77,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // Sync initial audio monitoring state with hardware meter
         _engine.UpdateAudioMonitoringSettings(SystemAudioEnabled, SystemAudioVolume, MicAudioEnabled, MicAudioVolume);
 
-        // Global hotkey hook for F8 (Start/Stop) and F9 (Pause/Resume)
+        // Global hotkey hook (Default: Ctrl+Alt+Shift+D5 for Record, Ctrl+Alt+Shift+D8 for Pause)
         _hotKeyService = new GlobalHotKeyService();
-        _hotKeyService.F8Pressed += () => Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+        _hotKeyService.RecordTogglePressed += () => Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
         {
             if (CurrentState == RecordingState.Idle)
             {
@@ -91,12 +91,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             }
         });
 
-        _hotKeyService.F9Pressed += () => Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+        _hotKeyService.PauseTogglePressed += () => Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
         {
             await TogglePauseResumeAsync();
         });
 
         UpdateTranslations();
+        UpdateHotKeys();
         RefreshCommandPreview();
     }
 
@@ -180,7 +181,63 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private PipSize selectedPipSize = PipSize.Small;
 
-    // Multi-Track Audio & Auto-Stop
+    // OBS-Style Multi-Track Audio Matrix
+    [ObservableProperty]
+    private bool speakerTrack1 = true;
+
+    [ObservableProperty]
+    private bool speakerTrack2 = false;
+
+    [ObservableProperty]
+    private bool speakerTrack3 = true;
+
+    [ObservableProperty]
+    private bool micTrack1 = true;
+
+    [ObservableProperty]
+    private bool micTrack2 = true;
+
+    [ObservableProperty]
+    private bool micTrack3 = false;
+
+    // Customizable Global Hotkeys (Default: Ctrl+Alt+Shift+D5, Ctrl+Alt+Shift+D8)
+    [ObservableProperty]
+    private bool recordCtrl = true;
+
+    [ObservableProperty]
+    private bool recordAlt = true;
+
+    [ObservableProperty]
+    private bool recordShift = true;
+
+    [ObservableProperty]
+    private bool recordWin = false;
+
+    [ObservableProperty]
+    private int recordVkCode = 0x35; // D5
+
+    [ObservableProperty]
+    private string recordKeyName = "D5";
+
+    [ObservableProperty]
+    private bool pauseCtrl = true;
+
+    [ObservableProperty]
+    private bool pauseAlt = true;
+
+    [ObservableProperty]
+    private bool pauseShift = true;
+
+    [ObservableProperty]
+    private bool pauseWin = false;
+
+    [ObservableProperty]
+    private int pauseVkCode = 0x38; // D8
+
+    [ObservableProperty]
+    private string pauseKeyName = "D8";
+
+    // Legacy AudioTrackMode & Auto-Stop
     [ObservableProperty]
     private ObservableCollection<AudioTrackMode> audioTrackModeList;
 
@@ -420,6 +477,100 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _engine.UpdateAudioMonitoringSettings(SystemAudioEnabled, SystemAudioVolume, MicAudioEnabled, value);
     }
 
+    partial void OnSpeakerTrack1Changed(bool value) => RefreshCommandPreview();
+    partial void OnSpeakerTrack2Changed(bool value) => RefreshCommandPreview();
+    partial void OnSpeakerTrack3Changed(bool value) => RefreshCommandPreview();
+    partial void OnMicTrack1Changed(bool value) => RefreshCommandPreview();
+    partial void OnMicTrack2Changed(bool value) => RefreshCommandPreview();
+    partial void OnMicTrack3Changed(bool value) => RefreshCommandPreview();
+
+    partial void OnRecordCtrlChanged(bool value) => UpdateHotKeys();
+    partial void OnRecordAltChanged(bool value) => UpdateHotKeys();
+    partial void OnRecordShiftChanged(bool value) => UpdateHotKeys();
+    partial void OnRecordWinChanged(bool value) => UpdateHotKeys();
+    partial void OnRecordVkCodeChanged(int value) => UpdateHotKeys();
+    partial void OnRecordKeyNameChanged(string value) => UpdateHotKeys();
+
+    partial void OnPauseCtrlChanged(bool value) => UpdateHotKeys();
+    partial void OnPauseAltChanged(bool value) => UpdateHotKeys();
+    partial void OnPauseShiftChanged(bool value) => UpdateHotKeys();
+    partial void OnPauseWinChanged(bool value) => UpdateHotKeys();
+    partial void OnPauseVkCodeChanged(int value) => UpdateHotKeys();
+    partial void OnPauseKeyNameChanged(string value) => UpdateHotKeys();
+
+    public void SetRecordKey(Avalonia.Input.Key key)
+    {
+        var (vk, name) = KeyBindingHelper.FromAvaloniaKey(key);
+        if (vk != 0 && !string.IsNullOrEmpty(name))
+        {
+            RecordVkCode = vk;
+            RecordKeyName = name;
+        }
+    }
+
+    public void SetRecordKeyFromInput(string input)
+    {
+        var (vk, name) = KeyBindingHelper.ParseKey(input);
+        if (vk != 0 && !string.IsNullOrEmpty(name))
+        {
+            RecordVkCode = vk;
+            RecordKeyName = name;
+        }
+    }
+
+    public void SetPauseKey(Avalonia.Input.Key key)
+    {
+        var (vk, name) = KeyBindingHelper.FromAvaloniaKey(key);
+        if (vk != 0 && !string.IsNullOrEmpty(name))
+        {
+            PauseVkCode = vk;
+            PauseKeyName = name;
+        }
+    }
+
+    public void SetPauseKeyFromInput(string input)
+    {
+        var (vk, name) = KeyBindingHelper.ParseKey(input);
+        if (vk != 0 && !string.IsNullOrEmpty(name))
+        {
+            PauseVkCode = vk;
+            PauseKeyName = name;
+        }
+    }
+
+    public string GetRecordShortcutDisplay()
+    {
+        var parts = new System.Collections.Generic.List<string>();
+        if (RecordCtrl) parts.Add("Ctrl");
+        if (RecordAlt) parts.Add("Alt");
+        if (RecordShift) parts.Add("Shift");
+        if (RecordWin) parts.Add("Win");
+        parts.Add(RecordKeyName);
+        return string.Join(" + ", parts);
+    }
+
+    public string GetPauseShortcutDisplay()
+    {
+        var parts = new System.Collections.Generic.List<string>();
+        if (PauseCtrl) parts.Add("Ctrl");
+        if (PauseAlt) parts.Add("Alt");
+        if (PauseShift) parts.Add("Shift");
+        if (PauseWin) parts.Add("Win");
+        parts.Add(PauseKeyName);
+        return string.Join(" + ", parts);
+    }
+
+    private void UpdateHotKeys()
+    {
+        var config = BuildCurrentConfig();
+        _hotKeyService.UpdateHotKeys(config);
+        if (CurrentState == RecordingState.Idle)
+        {
+            StatusMessage = $"Hệ thống sẵn sàng ghi hình. (Phím tắt: {GetRecordShortcutDisplay()} = Quay/Dừng, {GetPauseShortcutDisplay()} = Tạm dừng)";
+            OnPropertyChanged(nameof(StatusMessage));
+        }
+    }
+
     partial void OnSelectedProfileChanged(QualityProfile? value)
     {
         if (value == null) return;
@@ -476,6 +627,24 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             SystemAudioVolume = SystemAudioVolume,
             RecordMicrophone = MicAudioEnabled,
             MicrophoneVolume = MicAudioVolume,
+            SpeakerTrack1 = SpeakerTrack1,
+            SpeakerTrack2 = SpeakerTrack2,
+            SpeakerTrack3 = SpeakerTrack3,
+            MicTrack1 = MicTrack1,
+            MicTrack2 = MicTrack2,
+            MicTrack3 = MicTrack3,
+            RecordCtrl = RecordCtrl,
+            RecordAlt = RecordAlt,
+            RecordShift = RecordShift,
+            RecordWin = RecordWin,
+            RecordVkCode = RecordVkCode,
+            RecordKeyName = RecordKeyName,
+            PauseCtrl = PauseCtrl,
+            PauseAlt = PauseAlt,
+            PauseShift = PauseShift,
+            PauseWin = PauseWin,
+            PauseVkCode = PauseVkCode,
+            PauseKeyName = PauseKeyName,
             OutputDirectory = OutputDirectory
         };
     }
@@ -500,7 +669,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             if (state == RecordingState.Recording)
             {
                 StatusMessage = string.IsNullOrEmpty(_engine.LastErrorMessage)
-                    ? "🔴 Đang quay phim & thu âm trực tiếp... (F8 = Dừng, F9 = Tạm dừng)"
+                    ? $"🔴 Đang quay phim & thu âm trực tiếp... ({GetRecordShortcutDisplay()} = Dừng, {GetPauseShortcutDisplay()} = Tạm dừng)"
                     : $"⚠️ Đang quay phim (Lưu ý: {_engine.LastErrorMessage})";
 
                 // Show floating mini-bar if enabled on desktop
@@ -521,7 +690,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             }
             else if (state == RecordingState.Paused)
             {
-                StatusMessage = "⏸️ Quá trình quay đang tạm dừng. (F9 = Tiếp tục)";
+                StatusMessage = $"⏸️ Quá trình quay đang tạm dừng. ({GetPauseShortcutDisplay()} = Tiếp tục, {GetRecordShortcutDisplay()} = Dừng & Lưu)";
             }
             else if (state == RecordingState.Idle)
             {
@@ -722,6 +891,28 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             // Ignore if file manager cannot be opened on mobile
         }
+    }
+
+    [RelayCommand]
+    private void ResetRecordShortcut()
+    {
+        RecordCtrl = true;
+        RecordAlt = true;
+        RecordShift = true;
+        RecordWin = false;
+        RecordVkCode = 0x35; // D5
+        RecordKeyName = "D5";
+    }
+
+    [RelayCommand]
+    private void ResetPauseShortcut()
+    {
+        PauseCtrl = true;
+        PauseAlt = true;
+        PauseShift = true;
+        PauseWin = false;
+        PauseVkCode = 0x38; // D8
+        PauseKeyName = "D8";
     }
 
     #endregion

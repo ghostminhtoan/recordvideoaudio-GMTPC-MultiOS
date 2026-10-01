@@ -33,11 +33,37 @@ public class RecordingConfig
     public int AutoStopMinutes { get; set; } = 0; // 0 = unlimited
 
     // Audio Mixer settings
-    public AudioTrackMode AudioTrackMode { get; set; } = AudioTrackMode.MixToSingleTrack;
     public bool RecordSystemAudio { get; set; } = true;
     public int SystemAudioVolume { get; set; } = 100; // 0 - 100%
     public bool RecordMicrophone { get; set; } = true;
     public int MicrophoneVolume { get; set; } = 90;   // 0 - 100%
+    public AudioTrackMode AudioTrackMode { get; set; } = AudioTrackMode.MixToSingleTrack;
+
+    // OBS-Style Multi-Track Audio Matrix
+    // Speaker Routing to Track 1, 2, 3
+    public bool SpeakerTrack1 { get; set; } = true;
+    public bool SpeakerTrack2 { get; set; } = false;
+    public bool SpeakerTrack3 { get; set; } = true;
+
+    // Microphone Routing to Track 1, 2, 3
+    public bool MicTrack1 { get; set; } = true;
+    public bool MicTrack2 { get; set; } = true;
+    public bool MicTrack3 { get; set; } = false;
+
+    // Custom Hotkey Settings
+    public bool RecordCtrl { get; set; } = true;
+    public bool RecordAlt { get; set; } = true;
+    public bool RecordShift { get; set; } = true;
+    public bool RecordWin { get; set; } = false;
+    public int RecordVkCode { get; set; } = 0x35; // D5
+    public string RecordKeyName { get; set; } = "D5";
+
+    public bool PauseCtrl { get; set; } = true;
+    public bool PauseAlt { get; set; } = true;
+    public bool PauseShift { get; set; } = true;
+    public bool PauseWin { get; set; } = false;
+    public int PauseVkCode { get; set; } = 0x38; // D8
+    public string PauseKeyName { get; set; } = "D8";
 
     // Output Directory
     public string OutputDirectory { get; set; } = string.Empty;
