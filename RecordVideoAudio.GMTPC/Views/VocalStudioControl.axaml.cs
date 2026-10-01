@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using RecordVideoAudio.GMTPC.Services;
 using RecordVideoAudio.GMTPC.ViewModels;
 
 namespace RecordVideoAudio.GMTPC.Views;
@@ -11,21 +12,21 @@ public partial class VocalStudioControl : UserControl
     {
         InitializeComponent();
 
-        var holdBorder = this.FindControl<Border>("HoldMeasureBorder");
-        if (holdBorder != null)
+        var holdSpeakerBorder = this.FindControl<Border>("HoldSpeakerMeasureBorder") ?? this.FindControl<Border>("HoldMeasureBorder");
+        if (holdSpeakerBorder != null)
         {
-            holdBorder.AddHandler(InputElement.PointerPressedEvent, (s, e) =>
+            holdSpeakerBorder.AddHandler(InputElement.PointerPressedEvent, (s, e) =>
             {
-                if (e.GetCurrentPoint(holdBorder).Properties.IsLeftButtonPressed)
+                if (e.GetCurrentPoint(holdSpeakerBorder).Properties.IsLeftButtonPressed)
                 {
                     if (DataContext is MainViewModel vm)
                     {
-                        vm.StartLiveAudioHoldCapture();
+                        vm.StartLiveAudioHoldCapture(LatencyMeasurementTarget.SpeakerAndMic);
                     }
                 }
             }, RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
 
-            holdBorder.AddHandler(InputElement.PointerReleasedEvent, (s, e) =>
+            holdSpeakerBorder.AddHandler(InputElement.PointerReleasedEvent, (s, e) =>
             {
                 if (DataContext is MainViewModel vm)
                 {
@@ -33,7 +34,38 @@ public partial class VocalStudioControl : UserControl
                 }
             }, RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
 
-            holdBorder.AddHandler(InputElement.PointerCaptureLostEvent, (s, e) =>
+            holdSpeakerBorder.AddHandler(InputElement.PointerCaptureLostEvent, (s, e) =>
+            {
+                if (DataContext is MainViewModel vm)
+                {
+                    vm.StopLiveAudioHoldCapture();
+                }
+            }, RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
+        }
+
+        var holdWirelessBorder = this.FindControl<Border>("HoldWirelessMeasureBorder");
+        if (holdWirelessBorder != null)
+        {
+            holdWirelessBorder.AddHandler(InputElement.PointerPressedEvent, (s, e) =>
+            {
+                if (e.GetCurrentPoint(holdWirelessBorder).Properties.IsLeftButtonPressed)
+                {
+                    if (DataContext is MainViewModel vm)
+                    {
+                        vm.StartLiveAudioHoldCapture(LatencyMeasurementTarget.WirelessHeadphone);
+                    }
+                }
+            }, RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
+
+            holdWirelessBorder.AddHandler(InputElement.PointerReleasedEvent, (s, e) =>
+            {
+                if (DataContext is MainViewModel vm)
+                {
+                    vm.StopLiveAudioHoldCapture();
+                }
+            }, RoutingStrategies.Tunnel | RoutingStrategies.Bubble);
+
+            holdWirelessBorder.AddHandler(InputElement.PointerCaptureLostEvent, (s, e) =>
             {
                 if (DataContext is MainViewModel vm)
                 {

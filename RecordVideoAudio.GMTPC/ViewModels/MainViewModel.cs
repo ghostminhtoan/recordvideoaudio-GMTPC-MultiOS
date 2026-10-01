@@ -424,6 +424,20 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private string liveHoldButtonText = "🎙️ NHẤN GIỮ ĐỂ HÁT (BUÔNG TAY ĐỂ TÍNH ĐỘ TRỄ)";
 
     [ObservableProperty]
+    private string liveHoldSpeakerButtonText = "🎙️ NHẤN GIỮ ĐỂ HÁT (BUÔNG RA ĐỂ ĐO)";
+
+    [ObservableProperty]
+    private string liveHoldWirelessButtonText = "🎧 NHẤN GIỮ ĐỂ HÁT (BUÔNG RA ĐỂ ĐO)";
+
+    [ObservableProperty]
+    private bool isPlayMetronomeGuideEnabled = false;
+
+    [ObservableProperty]
+    private string activeAudioDevicesInfo = string.Empty;
+
+    private LatencyMeasurementTarget _currentHoldTarget = LatencyMeasurementTarget.SpeakerAndMic;
+
+    [ObservableProperty]
     private double liveHoldElapsedSeconds = 0.0;
 
     private Avalonia.Threading.DispatcherTimer? _liveHoldTimer;
@@ -911,6 +925,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     public void OpenVocalStudio()
     {
+        RefreshActiveAudioDevicesInfo();
+
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime)
         {
             try
@@ -1221,32 +1237,64 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
-    public void StartLiveAudioHoldCapture()
+    [RelayCommand]
+    public void RefreshActiveAudioDevices()
+    {
+        RefreshActiveAudioDevicesInfo();
+    }
+
+    public void RefreshActiveAudioDevicesInfo()
+    {
+        var (render, capture) = _latencyDetector.GetActiveDeviceNames();
+        ActiveAudioDevicesInfo = $"🎧 Thiết bị phát: {render}   |   🎙️ Micro: {capture}";
+    }
+
+    public void StartLiveAudioHoldCapture(LatencyMeasurementTarget target = LatencyMeasurementTarget.SpeakerAndMic)
     {
         if (IsDetectingLatency) return;
         HasDetectedLatency = false;
         IsDetectingLatency = true;
         IsHoldingLiveMeasure = true;
         LiveHoldElapsedSeconds = 0.0;
+        _currentHoldTarget = target;
+
+        if (target == LatencyMeasurementTarget.WirelessHeadphone)
+        {
+            LiveHoldWirelessButtonText = "🔴 ĐANG THU (0.0s)... GIỮ CHUỘT!";
+        }
+        else
+        {
+            LiveHoldSpeakerButtonText = "🔴 ĐANG THU (0.0s)... GIỮ CHUỘT!";
+        }
         LiveHoldButtonText = "🔴 ĐANG THU ÂM (0.0s)... GIỮ CHUỘT!";
 
-        bool started = _latencyDetector.StartLiveHoldCapture();
+        bool started = _latencyDetector.StartLiveHoldCapture(target, IsPlayMetronomeGuideEnabled);
         if (!started)
         {
             IsDetectingLatency = false;
             IsHoldingLiveMeasure = false;
+            LiveHoldSpeakerButtonText = "🎙️ NHẤN GIỮ ĐỂ HÁT (BUÔNG RA ĐỂ ĐO)";
+            LiveHoldWirelessButtonText = "🎧 NHẤN GIỮ ĐỂ HÁT (BUÔNG RA ĐỂ ĐO)";
             LiveHoldButtonText = "🎙️ NHẤN GIỮ ĐỂ HÁT (BUÔNG TAY ĐỂ TÍNH ĐỘ TRỄ)";
             LatencyStatusMessage = _latencyDetector.StatusMessage;
             return;
         }
 
-        LatencyStatusMessage = "🔴 ĐANG THU ÂM TIẾNG HÁT & NHẠC... Hãy giữ chuột và hát theo bài hát trên loa!";
+        LatencyStatusMessage = _latencyDetector.StatusMessage;
 
         _liveHoldTimer?.Stop();
         _liveHoldTimer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
         _liveHoldTimer.Tick += (s, e) =>
         {
             LiveHoldElapsedSeconds += 0.1;
+            if (_currentHoldTarget == LatencyMeasurementTarget.WirelessHeadphone)
+            {
+                LiveHoldWirelessButtonText = $"🔴 ĐANG THU ({LiveHoldElapsedSeconds:F1}s)... HÃY GIỮ CHUỘT!";
+            }
+            else
+            {
+                LiveHoldSpeakerButtonText = $"🔴 ĐANG THU ({LiveHoldElapsedSeconds:F1}s)... HÃY GIỮ CHUỘT!";
+            }
             LiveHoldButtonText = $"🔴 ĐANG THU ÂM ({LiveHoldElapsedSeconds:F1}s)... HÃY GIỮ CHUỘT!";
         };
         _liveHoldTimer.Start();
@@ -1259,6 +1307,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _liveHoldTimer?.Stop();
         _liveHoldTimer = null;
         IsHoldingLiveMeasure = false;
+        LiveHoldSpeakerButtonText = "🎙️ NHẤN GIỮ ĐỂ HÁT (BUÔNG RA ĐỂ ĐO)";
+        LiveHoldWirelessButtonText = "🎧 NHẤN GIỮ ĐỂ HÁT (BUÔNG RA ĐỂ ĐO)";
         LiveHoldButtonText = "🎙️ NHẤN GIỮ ĐỂ HÁT (BUÔNG TAY ĐỂ TÍNH ĐỘ TRỄ)";
 
         try
@@ -1269,7 +1319,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 DetectedLatencyMs = res.Value;
                 LatencyConfidence = _latencyDetector.ConfidencePercent;
                 HasDetectedLatency = true;
-                LatencyStatusMessage = $"Đã phát hiện độ lệch bài hát & micro: {res.Value} ms (Độ tin cậy: {LatencyConfidence:0.0}%)";
+                LatencyStatusMessage = _latencyDetector.StatusMessage;
             }
             else
             {

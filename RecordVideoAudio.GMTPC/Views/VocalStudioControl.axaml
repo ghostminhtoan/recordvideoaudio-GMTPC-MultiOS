@@ -449,41 +449,84 @@
                         <Border Background="#10192D" CornerRadius="8" Padding="12" BorderBrush="#00F0FF" BorderThickness="1.5">
                             <StackPanel Spacing="10">
                                 <TextBlock Text="🎯 TỰ ĐỘNG ĐO &amp; BÙ TRỪ LỆCH TIẾNG MICRO VÀ BÀI HÁT (ZERO LATENCY)" FontWeight="Bold" FontSize="12" Foreground="#00F0FF" />
-                                <TextBlock Text="Giải pháp thông minh: Nhấn giữ chuột/chạm tay vào nút bên dưới và hát theo bài hát karaoke trên loa 2-5 giây, ứng dụng sẽ tự động phân tích tương quan sóng âm để tìm chính xác độ trễ mili giây."
+                                <TextBlock Text="Giải pháp thông minh: Tự động đo độ trễ âm thanh cho cả Loa ngoài lẫn Tai nghe không dây/Bluetooth. Nhấn giữ chuột/chạm tay vào nút đo và hát theo 2-5 giây để hệ thống tính toán bù trừ mili-giây chuẩn xác."
                                            FontSize="10" Foreground="#CBD5E1" TextWrapping="Wrap" />
 
-                                <Grid ColumnDefinitions="*,*" Margin="0,4,0,0">
-                                    <!-- Method 1: Hold-to-measure Live Karaoke Detector -->
-                                    <Border Grid.Column="0" Background="#0A101D" CornerRadius="8" Padding="10" Margin="0,0,5,0" BorderBrush="#00E676" BorderThickness="1.5">
-                                        <StackPanel Spacing="8">
-                                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <TextBlock Text="🎵 HÁT THEO NHẠC" FontWeight="Bold" FontSize="11" Foreground="#00E676" />
-                                                <Border Background="#1E293B" CornerRadius="4" Padding="4,1">
-                                                    <TextBlock Text="HOLD-TO-MEASURE" FontSize="9" FontWeight="Bold" Foreground="#00E676" />
-                                                </Border>
+                                <!-- Active Devices Banner -->
+                                <Border Background="#060A12" CornerRadius="6" Padding="10,6" BorderBrush="#1F2D4A" BorderThickness="1">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Grid.Column="0" Text="{Binding ActiveAudioDevicesInfo}" FontSize="10" FontWeight="SemiBold" Foreground="#38BDF8" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                        <Button Grid.Column="1" Content="🔄 Làm mới thiết bị" Command="{Binding RefreshActiveAudioDevicesCommand}" Margin="6,0,0,0"
+                                                FontSize="9" Background="#1E293B" Foreground="#94A3B8" Padding="6,2" CornerRadius="4" />
+                                    </Grid>
+                                </Border>
+
+                                <Grid ColumnDefinitions="*,*,*" Margin="0,4,0,0">
+                                    <!-- Method 1: Hold-to-measure Live Karaoke Detector (Speaker & Mic) -->
+                                    <Border Grid.Column="0" Background="#0A101D" CornerRadius="8" Padding="10" Margin="0,0,4,0" BorderBrush="#00E676" BorderThickness="1.5">
+                                        <Grid RowDefinitions="Auto,*,Auto">
+                                            <StackPanel Grid.Row="0" Spacing="6">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <TextBlock Text="🔊 LOA &amp; MICRO" FontWeight="Bold" FontSize="11" Foreground="#00E676" />
+                                                    <Border Background="#1E293B" CornerRadius="4" Padding="3,1">
+                                                        <TextBlock Text="HÁT LOA NGOÀI" FontSize="9" FontWeight="Bold" Foreground="#00E676" />
+                                                    </Border>
+                                                </StackPanel>
+                                                <TextBlock Text="Bật bài hát qua loa ngoài, NHẤN GIỮ và hát theo 2-5 giây, sau đó BUÔNG RA để tính độ lệch." FontSize="10" Foreground="#8892B0" TextWrapping="Wrap" />
                                             </StackPanel>
                                             
-                                            <TextBlock Text="Mở nhạc karaoke trên loa, NHẤN GIỮ CHUỘT/CHẠM GIỮ vào nút bên dưới và hát theo 2-5 giây, sau đó BUÔNG RA để tính toán." FontSize="10" Foreground="#8892B0" TextWrapping="Wrap" />
-                                            
-                                            <!-- Nút Hold-To-Measure với sự kiện PointerPressed và PointerReleased -->
-                                            <Border x:Name="HoldMeasureBorder" Background="#00E676" CornerRadius="6" Cursor="Hand" Padding="0,10">
-                                                <TextBlock Text="{Binding LiveHoldButtonText}"
-                                                           Foreground="#080C16" FontWeight="Bold" FontSize="11"
-                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            <!-- Nút Hold-To-Measure cho Loa ngoài -->
+                                            <Border Grid.Row="2" x:Name="HoldSpeakerMeasureBorder" Background="#00E676" CornerRadius="6" Cursor="Hand" Padding="4,10" Margin="0,10,0,0">
+                                                <TextBlock Text="{Binding LiveHoldSpeakerButtonText}"
+                                                           Foreground="#080C16" FontWeight="Bold" FontSize="10"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
                                             </Border>
-                                        </StackPanel>
+                                        </Grid>
                                     </Border>
 
-                                    <!-- Method 2: Pulse Calibration -->
-                                    <Border Grid.Column="1" Background="#0A101D" CornerRadius="8" Padding="10" Margin="5,0,0,0" BorderBrush="#FFB800" BorderThickness="1.5">
-                                        <StackPanel Spacing="8">
-                                            <TextBlock Text="🔊 XUNG ÂM BÍP CHUẨN" FontWeight="Bold" FontSize="11" Foreground="#FFB800" />
-                                            <TextBlock Text="Phát 1 tiếng bíp ngắn qua loa và dùng thuật toán sóng phản xạ Matched Filter để đo chính xác độ trễ phần cứng (±1ms)." FontSize="10" Foreground="#8892B0" TextWrapping="Wrap" />
-                                            <Button Content="🔊 PHÁT XUNG BÍP ĐO ĐỘ TRỄ" Command="{Binding CalibrateLatencyWithPulseCommand}"
+                                    <!-- Method 2: Wireless Headphone & Mic (Bluetooth) -->
+                                    <Border Grid.Column="1" Background="#0A101D" CornerRadius="8" Padding="10" Margin="2,0,2,0" BorderBrush="#00F0FF" BorderThickness="1.5">
+                                        <Grid RowDefinitions="Auto,*,Auto">
+                                            <StackPanel Grid.Row="0" Spacing="6">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <TextBlock Text="🎧 TAI NGHE KHÔNG DÂY" FontWeight="Bold" FontSize="11" Foreground="#00F0FF" />
+                                                    <Border Background="#1E293B" CornerRadius="4" Padding="3,1">
+                                                        <TextBlock Text="BLUETOOTH" FontSize="9" FontWeight="Bold" Foreground="#00F0FF" />
+                                                    </Border>
+                                                </StackPanel>
+                                                <TextBlock Text="Đeo tai nghe không dây, NHẤN GIỮ và hát/đếm theo bài hát hoặc theo nhịp phách Metronome." FontSize="10" Foreground="#8892B0" TextWrapping="Wrap" />
+                                                <CheckBox Content="Phát nhịp Metronome (120BPM)" IsChecked="{Binding IsPlayMetronomeGuideEnabled}"
+                                                          FontSize="10" Foreground="#67E8F9" Margin="0,2,0,0"
+                                                          ToolTip.Tip="Tự phát tiếng gõ nhịp 120BPM vào tai nghe nếu bạn không mở sẵn bài hát ngoài." />
+                                            </StackPanel>
+                                            
+                                            <!-- Nút Hold-To-Measure cho Tai nghe không dây -->
+                                            <Border Grid.Row="2" x:Name="HoldWirelessMeasureBorder" Background="#00F0FF" CornerRadius="6" Cursor="Hand" Padding="4,10" Margin="0,10,0,0">
+                                                <TextBlock Text="{Binding LiveHoldWirelessButtonText}"
+                                                           Foreground="#080C16" FontWeight="Bold" FontSize="10"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Method 3: Pulse Calibration -->
+                                    <Border Grid.Column="2" Background="#0A101D" CornerRadius="8" Padding="10" Margin="4,0,0,0" BorderBrush="#FFB800" BorderThickness="1.5">
+                                        <Grid RowDefinitions="Auto,*,Auto">
+                                            <StackPanel Grid.Row="0" Spacing="6">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <TextBlock Text="🔊 XUNG ÂM BÍP" FontWeight="Bold" FontSize="11" Foreground="#FFB800" />
+                                                    <Border Background="#1E293B" CornerRadius="4" Padding="3,1">
+                                                        <TextBlock Text="PHẦN CỨNG" FontSize="9" FontWeight="Bold" Foreground="#FFB800" />
+                                                    </Border>
+                                                </StackPanel>
+                                                <TextBlock Text="Phát 1 tiếng bíp ngắn qua loa và dùng thuật toán Matched Filter đo trễ phần cứng (±1ms)." FontSize="10" Foreground="#8892B0" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                            
+                                            <Button Grid.Row="2" Content="🔊 PHÁT BÍP ĐO TRỄ" Command="{Binding CalibrateLatencyWithPulseCommand}"
                                                     IsEnabled="{Binding !IsDetectingLatency}"
-                                                    Background="#FFB800" Foreground="#080C16" FontWeight="Bold" FontSize="11"
-                                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0,10" CornerRadius="6" />
-                                        </StackPanel>
+                                                    Background="#FFB800" Foreground="#080C16" FontWeight="Bold" FontSize="10"
+                                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0,10" Margin="0,10,0,0" CornerRadius="6" />
+                                        </Grid>
                                     </Border>
                                 </Grid>
 
