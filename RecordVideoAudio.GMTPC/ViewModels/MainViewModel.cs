@@ -394,6 +394,17 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private bool hasDetectedLatency = false;
 
+    [ObservableProperty]
+    private bool isHoldingLiveMeasure = false;
+
+    [ObservableProperty]
+    private string liveHoldButtonText = "🎙️ NHẤN GIỮ ĐỂ HÁT (BUÔNG TAY ĐỂ TÍNH ĐỘ TRỄ)";
+
+    [ObservableProperty]
+    private double liveHoldElapsedSeconds = 0.0;
+
+    private Avalonia.Threading.DispatcherTimer? _liveHoldTimer;
+
     public bool HasActiveVocalFx => MicEcho || MicReverb || MicAutoTune || (MicPitchShiftSemitones != 0) || MicCompressor || MicNoiseSuppression || MicNoiseGate || MicDeEsser;
 
     public string VocalFxBadgeText
@@ -829,18 +840,49 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
-    [RelayCommand]
-    private void DetectLatencyFromLiveAudio()
+    public void StartLiveAudioHoldCapture()
     {
         if (IsDetectingLatency) return;
-        IsDetectingLatency = true;
-        LatencyStatusMessage = "Đang phân tích tương quan sóng âm bài hát & micro...";
         HasDetectedLatency = false;
+        IsDetectingLatency = true;
+        IsHoldingLiveMeasure = true;
+        LiveHoldElapsedSeconds = 0.0;
+        LiveHoldButtonText = "🔴 ĐANG THU ÂM (0.0s)... GIỮ CHUỘT!";
+
+        bool started = _latencyDetector.StartLiveHoldCapture();
+        if (!started)
+        {
+            IsDetectingLatency = false;
+            IsHoldingLiveMeasure = false;
+            LiveHoldButtonText = "🎙️ NHẤN GIỮ ĐỂ HÁT (BUÔNG TAY ĐỂ TÍNH ĐỘ TRỄ)";
+            LatencyStatusMessage = _latencyDetector.StatusMessage;
+            return;
+        }
+
+        LatencyStatusMessage = "🔴 ĐANG THU ÂM TIẾNG HÁT & NHẠC... Hãy giữ chuột và hát theo bài hát trên loa!";
+
+        _liveHoldTimer?.Stop();
+        _liveHoldTimer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+        _liveHoldTimer.Tick += (s, e) =>
+        {
+            LiveHoldElapsedSeconds += 0.1;
+            LiveHoldButtonText = $"🔴 ĐANG THU ÂM ({LiveHoldElapsedSeconds:F1}s)... HÃY GIỮ CHUỘT!";
+        };
+        _liveHoldTimer.Start();
+    }
+
+    public void StopLiveAudioHoldCapture()
+    {
+        if (!IsHoldingLiveMeasure) return;
+
+        _liveHoldTimer?.Stop();
+        _liveHoldTimer = null;
+        IsHoldingLiveMeasure = false;
+        LiveHoldButtonText = "🎙️ NHẤN GIỮ ĐỂ HÁT (BUÔNG TAY ĐỂ TÍNH ĐỘ TRỄ)";
 
         try
         {
-            _engine.AudioRecorder.GetLatestAudioSnapshot(out var speaker, out var mic);
-            var res = _latencyDetector.AnalyzeCrossCorrelation(speaker, mic, 48000);
+            var res = _latencyDetector.StopLiveHoldCaptureAndAnalyze();
             if (res.HasValue)
             {
                 DetectedLatencyMs = res.Value;
@@ -850,7 +892,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             }
             else
             {
-                LatencyStatusMessage = "Chưa phát hiện được sự trùng khớp. Hãy mở nhạc và hát theo lời để phân tích.";
+                LatencyStatusMessage = _latencyDetector.StatusMessage;
             }
         }
         catch (Exception ex)
@@ -861,6 +903,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             IsDetectingLatency = false;
         }
+    }
+
+    [RelayCommand]
+    private void DetectLatencyFromLiveAudio()
+    {
+        if (IsDetectingLatency) return;
+        LatencyStatusMessage = "Vui lòng NHẤN VÀ GIỮ CHUỘT trên nút đo bên dưới trong lúc hát, buông chuột khi hát xong để tính toán!";
     }
 
     [RelayCommand]

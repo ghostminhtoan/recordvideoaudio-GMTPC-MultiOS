@@ -25,6 +25,17 @@ $androidDir = Join-Path $distDir "android"
 Get-ChildItem -Path $distDir -File -Filter "*.dll" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
 Get-ChildItem -Path $distDir -File -Filter "*.pdb" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
 
+function Safe-CopyExecutable {
+    param([string]$Source, [string]$Destination)
+    if (Test-Path $Destination) {
+        $oldFile = "$Destination.old"
+        Remove-Item $oldFile -Force -ErrorAction SilentlyContinue
+        Move-Item $Destination $oldFile -Force -ErrorAction SilentlyContinue
+    }
+    Copy-Item $Source $Destination -Force
+    Remove-Item "$Destination.old" -Force -ErrorAction SilentlyContinue
+}
+
 # 1. Xuất bản Windows x64 (Self-Contained Single-File)
 Write-Host "`n[1/3] Đóng gói nền tảng Windows (x64) - Single-File Self-Contained..." -ForegroundColor Green
 dotnet publish "$rootDir\RecordVideoAudio.GMTPC.Desktop\RecordVideoAudio.GMTPC.Desktop.csproj" `
@@ -33,7 +44,7 @@ dotnet publish "$rootDir\RecordVideoAudio.GMTPC.Desktop\RecordVideoAudio.GMTPC.D
     -p:EnableCompressionInSingleFile=true -p:DebugType=None -o $winDir
 
 if (Test-Path "$winDir\RecordVideoAudio.GMTPC.Desktop.exe") {
-    Copy-Item "$winDir\RecordVideoAudio.GMTPC.Desktop.exe" "$distDir\RecordVideoAudio.GMTPC.exe" -Force
+    Safe-CopyExecutable "$winDir\RecordVideoAudio.GMTPC.Desktop.exe" "$distDir\RecordVideoAudio.GMTPC.exe"
 }
 
 # Sao chép ffmpeg phụ trợ vào thư mục phụ windows nội bộ (không để rải rác ở gốc dist)
@@ -50,7 +61,7 @@ dotnet publish "$rootDir\RecordVideoAudio.GMTPC.Desktop\RecordVideoAudio.GMTPC.D
     -p:EnableCompressionInSingleFile=true -p:DebugType=None -o $linuxDir
 
 if (Test-Path "$linuxDir\RecordVideoAudio.GMTPC.Desktop") {
-    Copy-Item "$linuxDir\RecordVideoAudio.GMTPC.Desktop" "$distDir\RecordVideoAudio.GMTPC-linux" -Force
+    Safe-CopyExecutable "$linuxDir\RecordVideoAudio.GMTPC.Desktop" "$distDir\RecordVideoAudio.GMTPC-linux"
 }
 
 # 3. Thu thập gói Android APK
