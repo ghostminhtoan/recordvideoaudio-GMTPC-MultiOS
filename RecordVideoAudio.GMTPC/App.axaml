@@ -36,7 +36,6 @@
         </Style>
         <Style Selector="CheckBox:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Foreground" Value="#FFE600" />
-            <Setter Property="TextBlock.Foreground" Value="#FFE600" />
         </Style>
         <Style Selector="CheckBox:pointerover TextBlock">
             <Setter Property="Foreground" Value="#FFE600" />
@@ -47,7 +46,6 @@
 
         <Style Selector="CheckBox:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Foreground" Value="#FFE600" />
-            <Setter Property="TextBlock.Foreground" Value="#FFE600" />
         </Style>
         <Style Selector="CheckBox:checked:pointerover TextBlock">
             <Setter Property="Foreground" Value="#FFE600" />
@@ -59,7 +57,6 @@
         </Style>
         <Style Selector="RadioButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Foreground" Value="#FFE600" />
-            <Setter Property="TextBlock.Foreground" Value="#FFE600" />
         </Style>
         <Style Selector="RadioButton:pointerover TextBlock">
             <Setter Property="Foreground" Value="#FFE600" />
@@ -72,7 +69,6 @@
         </Style>
         <Style Selector="ComboBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Foreground" Value="#FFE600" />
-            <Setter Property="TextBlock.Foreground" Value="#FFE600" />
         </Style>
         <Style Selector="ComboBoxItem:pointerover TextBlock">
             <Setter Property="Foreground" Value="#FFE600" />

@@ -13,11 +13,6 @@
     <RunAOTCompilation>false</RunAOTCompilation>
   </PropertyGroup>
 
-  <ItemGroup>
-    <AndroidResource Include="Icon.png">
-      <Link>Resources\drawable\Icon.png</Link>
-    </AndroidResource>
-  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia.Android" />

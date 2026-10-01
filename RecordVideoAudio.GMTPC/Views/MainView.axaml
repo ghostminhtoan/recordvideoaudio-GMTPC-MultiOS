@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:RecordVideoAudio.GMTPC.ViewModels"
+             xmlns:views="using:RecordVideoAudio.GMTPC.Views"
              mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="780"
              x:Class="RecordVideoAudio.GMTPC.Views.MainView"
              x:DataType="vm:MainViewModel"
@@ -15,7 +16,6 @@
         </Style>
         <Style Selector="CheckBox:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Foreground" Value="#FFE600" />
-            <Setter Property="TextBlock.Foreground" Value="#FFE600" />
         </Style>
         <Style Selector="CheckBox:pointerover TextBlock">
             <Setter Property="Foreground" Value="#FFE600" />
@@ -26,7 +26,6 @@
 
         <Style Selector="CheckBox:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Foreground" Value="#FFE600" />
-            <Setter Property="TextBlock.Foreground" Value="#FFE600" />
         </Style>
         <Style Selector="CheckBox:checked:pointerover TextBlock">
             <Setter Property="Foreground" Value="#FFE600" />
@@ -39,7 +38,6 @@
         </Style>
         <Style Selector="ComboBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Foreground" Value="#FFE600" />
-            <Setter Property="TextBlock.Foreground" Value="#FFE600" />
         </Style>
         <Style Selector="ComboBoxItem:pointerover TextBlock">
             <Setter Property="Foreground" Value="#FFE600" />
@@ -76,8 +74,19 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Vocal Studio FX Button in Header -->
+                <Button Grid.Column="3" Command="{Binding OpenVocalStudioCommand}"
+                        Background="#10192D" Foreground="#00F0FF" BorderBrush="#00F0FF" BorderThickness="1.5"
+                        CornerRadius="6" Padding="10,5" FontWeight="Bold" FontSize="11" VerticalAlignment="Center"
+                        Margin="0,0,8,0" ToolTip.Tip="Mở phòng thu âm Vocal Studio FX Rack: Karaoke Echo, Reverb, Auto-Tune, Pitch Shift &amp; Đo độ trễ">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <TextBlock Text="🎙️" FontSize="12" />
+                        <TextBlock Text="STUDIO FX" FontWeight="Bold" />
+                    </StackPanel>
+                </Button>
+
                 <!-- Language Toggle Button -->
-                <Button Grid.Column="3" Command="{Binding ToggleLanguageCommand}"
+                <Button Grid.Column="4" Command="{Binding ToggleLanguageCommand}"
                         Background="#1E293B" Foreground="#00F0FF" BorderBrush="#00F0FF" BorderThickness="1"
                         CornerRadius="6" Padding="10,5" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center">
                     <TextBlock Text="{Binding CurrentLanguageText}" />
@@ -672,6 +681,12 @@
                 </Button>
             </Grid>
         </Border>
+
+        <!-- ================= VOCAL STUDIO FX MODAL OVERLAY (ĐẦY ĐỦ 100% TÍNH NĂNG CHO ANDROID & SINGLE-VIEW) ================= -->
+        <Grid Grid.Row="0" Grid.RowSpan="3" IsVisible="{Binding IsVocalStudioModalOpen}"
+              Background="#080C16" ZIndex="1000">
+            <views:VocalStudioControl />
+        </Grid>
 
     </Grid>
 </UserControl>

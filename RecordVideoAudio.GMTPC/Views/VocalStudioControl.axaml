@@ -1,0 +1,475 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:RecordVideoAudio.GMTPC.ViewModels"
+             x:Class="RecordVideoAudio.GMTPC.Views.VocalStudioControl"
+             x:DataType="vm:MainViewModel"
+             Background="#080C16">
+
+    <UserControl.Styles>
+        <!-- Bắt buộc toàn bộ TabItem luôn luôn có chữ Cyan sáng rực rỡ ở mọi trạng thái -->
+        <Style Selector="TabControl">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="0" />
+        </Style>
+
+        <Style Selector="TabItem">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="#00F0FF" />
+            <Setter Property="Padding" Value="14,10" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="Background" Value="#10192D" />
+            <Setter Property="CornerRadius" Value="6,6,0,0" />
+            <Setter Property="BorderBrush" Value="#1F2D4A" />
+            <Setter Property="BorderThickness" Value="1,1,1,0" />
+        </Style>
+
+        <!-- Trạng thái chưa chọn (Unselected): Vẫn là Cyan sáng rõ nét -->
+        <Style Selector="TabItem:not(:selected)">
+            <Setter Property="Foreground" Value="#38E8F5" />
+            <Setter Property="Background" Value="#0F172A" />
+        </Style>
+        <Style Selector="TabItem:not(:selected) /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="#38E8F5" />
+        </Style>
+        <Style Selector="TabItem:not(:selected) TextBlock">
+            <Setter Property="Foreground" Value="#38E8F5" />
+        </Style>
+
+        <!-- Trạng thái hover (PointerOver): Cyan rực rỡ phát sáng -->
+        <Style Selector="TabItem:pointerover">
+            <Setter Property="Foreground" Value="#A5F8FF" />
+            <Setter Property="Background" Value="#17233D" />
+            <Setter Property="BorderBrush" Value="#00F0FF" />
+        </Style>
+        <Style Selector="TabItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="#A5F8FF" />
+        </Style>
+        <Style Selector="TabItem:pointerover TextBlock">
+            <Setter Property="Foreground" Value="#A5F8FF" />
+        </Style>
+
+        <!-- Trạng thái được chọn (Selected): Neon Cyan cực sáng chói -->
+        <Style Selector="TabItem:selected">
+            <Setter Property="Foreground" Value="#00FFFF" />
+            <Setter Property="Background" Value="#162544" />
+            <Setter Property="BorderBrush" Value="#00F0FF" />
+            <Setter Property="BorderThickness" Value="1.5,1.5,1.5,0" />
+        </Style>
+        <Style Selector="TabItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="#00FFFF" />
+        </Style>
+        <Style Selector="TabItem:selected TextBlock">
+            <Setter Property="Foreground" Value="#00FFFF" />
+        </Style>
+
+        <!-- Toàn bộ Option (CheckBox) khi Hover đều chuyển sang màu Vàng sáng rực rỡ -->
+        <Style Selector="CheckBox:pointerover">
+            <Setter Property="Foreground" Value="#FFE600" />
+        </Style>
+        <Style Selector="CheckBox:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="#FFE600" />
+        </Style>
+        <Style Selector="CheckBox:pointerover TextBlock">
+            <Setter Property="Foreground" Value="#FFE600" />
+        </Style>
+        <Style Selector="CheckBox:pointerover /template/ Border#PART_Border">
+            <Setter Property="BorderBrush" Value="#FFE600" />
+        </Style>
+
+        <Style Selector="CheckBox:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="#FFE600" />
+        </Style>
+        <Style Selector="CheckBox:checked:pointerover TextBlock">
+            <Setter Property="Foreground" Value="#FFE600" />
+        </Style>
+
+        <!-- ComboBoxItem khi Hover chuyển sang màu Vàng -->
+        <Style Selector="ComboBoxItem:pointerover">
+            <Setter Property="Foreground" Value="#FFE600" />
+            <Setter Property="Background" Value="#1E293B" />
+        </Style>
+        <Style Selector="ComboBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Foreground" Value="#FFE600" />
+        </Style>
+        <Style Selector="ComboBoxItem:pointerover TextBlock">
+            <Setter Property="Foreground" Value="#FFE600" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,*,Auto" Margin="14">
+        
+        <!-- Header -->
+        <Border Grid.Row="0" Background="#10192D" BorderBrush="#00F0FF" BorderThickness="1.5"
+                CornerRadius="8" Padding="14,10" Margin="0,0,0,10">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <TextBlock Text="🎙️" FontSize="20" VerticalAlignment="Center" />
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="GMTPC VOCAL STUDIO &amp; KARAOKE FX RACK" FontWeight="Bold" FontSize="13" Foreground="#00F0FF" />
+                        <TextBlock Text="Xử lý âm thanh thời gian thực • Bù trừ lệch tiếng (Zero Latency) • Chuẩn phòng thu &amp; Karaoke" FontSize="10" Foreground="#8892B0" />
+                    </StackPanel>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Border Background="#1E293B" CornerRadius="6" Padding="8,4" BorderBrush="#FFB800" BorderThickness="1">
+                        <TextBlock Text="{Binding VocalFxBadgeText}" FontSize="11" FontWeight="Bold" Foreground="#FFB800" />
+                    </Border>
+                    <Button Content="✕" Command="{Binding CloseVocalStudioCommand}"
+                            Background="#1E293B" Foreground="#FFFFFF" FontWeight="Bold"
+                            CornerRadius="6" Padding="10,4" FontSize="12" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Main FX Tabs (Chữ Tab luôn Cyan sáng rực rỡ) -->
+        <TabControl Grid.Row="1">
+            
+            <!-- Tab 1: Karaoke & Không gian (Echo & Reverb) -->
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="🎤" FontSize="13" VerticalAlignment="Center" />
+                        <TextBlock Text="KARAOKE &amp; KHÔNG GIAN" FontWeight="Bold" FontSize="11" Foreground="#00F0FF" VerticalAlignment="Center" />
+                    </StackPanel>
+                </TabItem.Header>
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="12" Margin="4,8,4,4">
+                        
+                        <!-- Stereo Echo / Delay Block -->
+                        <Border Background="#10192D" CornerRadius="8" Padding="12" BorderBrush="#1F2D4A" BorderThickness="1">
+                            <StackPanel Spacing="10">
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <CheckBox Grid.Column="0" Content="KARAOKE STEREO ECHO (DELAY LẶP TIẾNG)" IsChecked="{Binding MicEcho}"
+                                              FontWeight="Bold" FontSize="11" Foreground="#00F0FF"
+                                              ToolTip.Tip="Tạo hiệu ứng tiếng vang lặp lại đặc trưng của dàn âm thanh Karaoke gia đình và phòng hát chuyên nghiệp." />
+                                    <TextBlock Grid.Column="2" Text="{Binding MicEchoWetMixDisplay, StringFormat='Mix: {0}'}" FontSize="11" FontWeight="Bold" Foreground="#00F0FF" VerticalAlignment="Center" />
+                                </Grid>
+
+                                <!-- Echo Delay Time Slider -->
+                                <Grid ColumnDefinitions="140,*,60">
+                                    <TextBlock Grid.Column="0" Text="Độ trễ lặp (Delay):" FontSize="11" Foreground="#CBD5E1" VerticalAlignment="Center" />
+                                    <Slider Grid.Column="1" Minimum="50" Maximum="500" Value="{Binding MicEchoDelayMs}" IsEnabled="{Binding MicEcho}" Margin="6,0" />
+                                    <TextBlock Grid.Column="2" Text="{Binding MicEchoDelayDisplay}" FontSize="11" FontWeight="Bold" Foreground="#FFB800" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                </Grid>
+
+                                <!-- Echo Feedback Slider -->
+                                <Grid ColumnDefinitions="140,*,60">
+                                    <TextBlock Grid.Column="0" Text="Độ vang vọng (Feedback):" FontSize="11" Foreground="#CBD5E1" VerticalAlignment="Center" />
+                                    <Slider Grid.Column="1" Minimum="0" Maximum="90" Value="{Binding MicEchoFeedback}" IsEnabled="{Binding MicEcho}" Margin="6,0" />
+                                    <TextBlock Grid.Column="2" Text="{Binding MicEchoFeedbackDisplay}" FontSize="11" FontWeight="Bold" Foreground="#00E676" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                </Grid>
+
+                                <!-- Echo Wet Mix Slider -->
+                                <Grid ColumnDefinitions="140,*,60">
+                                    <TextBlock Grid.Column="0" Text="Tỷ lệ tiếng vang (Wet Mix):" FontSize="11" Foreground="#CBD5E1" VerticalAlignment="Center" />
+                                    <Slider Grid.Column="1" Minimum="0" Maximum="100" Value="{Binding MicEchoWetMix}" IsEnabled="{Binding MicEcho}" Margin="6,0" />
+                                    <TextBlock Grid.Column="2" Text="{Binding MicEchoWetMixDisplay}" FontSize="11" FontWeight="Bold" Foreground="#00F0FF" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Schroeder-Moorer Studio Reverb Block -->
+                        <Border Background="#10192D" CornerRadius="8" Padding="12" BorderBrush="#1F2D4A" BorderThickness="1">
+                            <StackPanel Spacing="10">
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <CheckBox Grid.Column="0" Content="SCHROEDER-MOORER REVERB (ÂM VANG KHÔNG GIAN)" IsChecked="{Binding MicReverb}"
+                                              FontWeight="Bold" FontSize="11" Foreground="#FF007F"
+                                              ToolTip.Tip="Mô phỏng âm học không gian phòng hòa nhạc (Concert Hall) hoặc phòng thu âm (Studio Plate) giúp giọng hát dày và bay bổng hơn." />
+                                    <TextBlock Grid.Column="2" Text="{Binding MicReverbWetMixDisplay, StringFormat='Mix: {0}'}" FontSize="11" FontWeight="Bold" Foreground="#FF007F" VerticalAlignment="Center" />
+                                </Grid>
+
+                                <!-- Reverb Room Size Slider -->
+                                <Grid ColumnDefinitions="140,*,60">
+                                    <TextBlock Grid.Column="0" Text="Kích thước phòng (Size):" FontSize="11" Foreground="#CBD5E1" VerticalAlignment="Center" />
+                                    <Slider Grid.Column="1" Minimum="10" Maximum="95" Value="{Binding MicReverbRoomSize}" IsEnabled="{Binding MicReverb}" Margin="6,0" />
+                                    <TextBlock Grid.Column="2" Text="{Binding MicReverbRoomSizeDisplay}" FontSize="11" FontWeight="Bold" Foreground="#FFB800" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                </Grid>
+
+                                <!-- Reverb Damping Slider -->
+                                <Grid ColumnDefinitions="140,*,60">
+                                    <TextBlock Grid.Column="0" Text="Hấp thụ dải cao (Damping):" FontSize="11" Foreground="#CBD5E1" VerticalAlignment="Center" />
+                                    <Slider Grid.Column="1" Minimum="0" Maximum="100" Value="{Binding MicReverbDamping}" IsEnabled="{Binding MicReverb}" Margin="6,0" />
+                                    <TextBlock Grid.Column="2" Text="{Binding MicReverbDampingDisplay}" FontSize="11" FontWeight="Bold" Foreground="#00E676" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                </Grid>
+
+                                <!-- Reverb Wet Mix Slider -->
+                                <Grid ColumnDefinitions="140,*,60">
+                                    <TextBlock Grid.Column="0" Text="Độ hòa trộn (Wet Mix):" FontSize="11" Foreground="#CBD5E1" VerticalAlignment="Center" />
+                                    <Slider Grid.Column="1" Minimum="0" Maximum="100" Value="{Binding MicReverbWetMix}" IsEnabled="{Binding MicReverb}" Margin="6,0" />
+                                    <TextBlock Grid.Column="2" Text="{Binding MicReverbWetMixDisplay}" FontSize="11" FontWeight="Bold" Foreground="#FF007F" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Tab 2: Nắn giọng & Cao độ (Auto-Tune & Pitch) -->
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="🎵" FontSize="13" VerticalAlignment="Center" />
+                        <TextBlock Text="NẮN GIỌNG &amp; CAO ĐỘ" FontWeight="Bold" FontSize="11" Foreground="#00F0FF" VerticalAlignment="Center" />
+                    </StackPanel>
+                </TabItem.Header>
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="12" Margin="4,8,4,4">
+                        
+                        <!-- Auto-Tune Pitch Correction -->
+                        <Border Background="#10192D" CornerRadius="8" Padding="12" BorderBrush="#1F2D4A" BorderThickness="1">
+                            <StackPanel Spacing="10">
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <CheckBox Grid.Column="0" Content="BẬT NẮN CAO ĐỘ (AUTO-TUNE VOCAL)" IsChecked="{Binding MicAutoTune}"
+                                              FontWeight="Bold" FontSize="11" Foreground="#FF007F"
+                                              ToolTip.Tip="Tự động nắn chỉnh cao độ giọng nói theo thang âm chuẩn, tạo hiệu ứng ca sĩ hoặc hiệu ứng Robot." />
+                                    <TextBlock Grid.Column="2" Text="{Binding MicAutoTuneSpeedDisplay}" FontSize="11" FontWeight="Bold" Foreground="#00F0FF" VerticalAlignment="Center" />
+                                </Grid>
+
+                                <Grid ColumnDefinitions="120,*,12,120,*">
+                                    <TextBlock Grid.Column="0" Text="Tone nốt gốc (Key):" FontSize="11" Foreground="#CBD5E1" VerticalAlignment="Center" />
+                                    <ComboBox Grid.Column="1" ItemsSource="{Binding MusicalKeyList}" SelectedItem="{Binding SelectedAutoTuneKey}"
+                                              IsEnabled="{Binding MicAutoTune}" Height="28" FontSize="11" />
+
+                                    <TextBlock Grid.Column="3" Text="Thang âm (Scale):" FontSize="11" Foreground="#CBD5E1" VerticalAlignment="Center" />
+                                    <ComboBox Grid.Column="4" ItemsSource="{Binding AutoTuneScaleList}" SelectedItem="{Binding SelectedAutoTuneScale}"
+                                              IsEnabled="{Binding MicAutoTune}" Height="28" FontSize="11" />
+                                </Grid>
+
+                                <Grid ColumnDefinitions="140,*,110">
+                                    <TextBlock Grid.Column="0" Text="Tốc độ nắn nốt (Speed):" FontSize="11" Foreground="#CBD5E1" VerticalAlignment="Center" />
+                                    <Slider Grid.Column="1" Minimum="0" Maximum="100" Value="{Binding MicAutoTuneSpeed}" IsEnabled="{Binding MicAutoTune}" Margin="6,0" />
+                                    <TextBlock Grid.Column="2" Text="{Binding MicAutoTuneSpeedDisplay}" FontSize="11" FontWeight="Bold" Foreground="#00F0FF" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                </Grid>
+
+                                <Border Background="#0D1322" CornerRadius="6" Padding="8" BorderBrush="#1F2D4A" BorderThickness="1">
+                                    <TextBlock Text="💡 Mẹo: Đặt Tốc độ = 0-10ms để có hiệu ứng Travis Scott / Robot sắc bén; Đặt 30-60ms để nắn nốt tự nhiên, êm tai." FontSize="10" Foreground="#A0AEC0" TextWrapping="Wrap" />
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Voice Changer / Pitch Shifter -->
+                        <Border Background="#10192D" CornerRadius="8" Padding="12" BorderBrush="#1F2D4A" BorderThickness="1">
+                            <StackPanel Spacing="10">
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <TextBlock Grid.Column="0" Text="🎭 BIẾN ĐỔI CAO ĐỘ GIỌNG NÓI (VOICE CHANGER / PITCH SHIFT)" FontWeight="Bold" FontSize="11" Foreground="#FFB800" VerticalAlignment="Center" />
+                                    <Button Grid.Column="2" Content="Giọng thật (0 st)" Command="{Binding ResetPitchShiftCommand}"
+                                            Background="#1E293B" Foreground="#64B5F6" FontSize="10" Padding="8,3" CornerRadius="4"
+                                            ToolTip.Tip="Đặt lại cao độ về 0 (Giọng nói nguyên bản)" />
+                                </Grid>
+
+                                <Grid ColumnDefinitions="140,*,110">
+                                    <TextBlock Grid.Column="0" Text="Dịch chuyển bán âm:" FontSize="11" Foreground="#CBD5E1" VerticalAlignment="Center" />
+                                    <Slider Grid.Column="1" Minimum="-12" Maximum="12" Value="{Binding MicPitchShiftSemitones}"
+                                            TickFrequency="1" IsSnapToTickEnabled="True" Margin="6,0" />
+                                    <TextBlock Grid.Column="2" Text="{Binding MicPitchShiftDisplay}" FontSize="11" FontWeight="Bold" Foreground="#FFB800" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                </Grid>
+
+                                <Grid ColumnDefinitions="*,*,*">
+                                    <TextBlock Grid.Column="0" Text="👹 Giọng trầm / Quái vật (-12 st)" FontSize="10" Foreground="#8892B0" />
+                                    <TextBlock Grid.Column="1" Text="🎙️ Giọng gốc (0 st)" FontSize="10" Foreground="#64B5F6" HorizontalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="🐿️ Giọng cao / Sóc chuột (+12 st)" FontSize="10" Foreground="#8892B0" HorizontalAlignment="Right" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Tab 3: Bộ lọc Studio (Broadcast & Filters) -->
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="🎙️" FontSize="13" VerticalAlignment="Center" />
+                        <TextBlock Text="BỘ LỌC STUDIO" FontWeight="Bold" FontSize="11" Foreground="#00F0FF" VerticalAlignment="Center" />
+                    </StackPanel>
+                </TabItem.Header>
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="12" Margin="4,8,4,4">
+                        
+                        <!-- AI Denoise & Noise Gate -->
+                        <Border Background="#10192D" CornerRadius="8" Padding="12" BorderBrush="#1F2D4A" BorderThickness="1">
+                            <StackPanel Spacing="10">
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <TextBlock Grid.Column="0" Text="🛡️ BỘ LỌC TẠP ÂM AI &amp; CỔNG NGẮT TIẾNG ỒN (CHUẨN OBS STUDIO)" FontWeight="Bold" FontSize="11" Foreground="#00E676" VerticalAlignment="Center" />
+                                    <Button Grid.Column="2" Content="Đặt lại" Command="{Binding ResetMicDspCommand}"
+                                            Background="#1E293B" Foreground="#8892B0" FontSize="10" Padding="8,3" CornerRadius="4" />
+                                </Grid>
+
+                                <Grid ColumnDefinitions="*,*">
+                                    <CheckBox Grid.Column="0" Content="Giảm ồn AI (RNNoise)" IsChecked="{Binding MicNoiseSuppression}"
+                                              FontSize="11" Foreground="#00E676" FontWeight="SemiBold"
+                                              ToolTip.Tip="Xóa sạch 100% tiếng quạt gió, bàn phím gõ, tiếng ve kêu, tiếng sôi xì micro." />
+                                    <CheckBox Grid.Column="1" Content="Lọc ù trầm 80Hz (High-Pass)" IsChecked="{Binding MicHighPassFilter}"
+                                              FontSize="11" Foreground="#CBD5E1"
+                                              ToolTip.Tip="Cắt bỏ toàn bộ tần số siêu trầm dưới 80Hz do rung bàn hoặc luồng hơi thở." />
+                                </Grid>
+
+                                <Grid ColumnDefinitions="140,*,70">
+                                    <CheckBox Grid.Column="0" Content="Cổng ngắt ồn (Gate):" IsChecked="{Binding MicNoiseGate}"
+                                              FontSize="11" Foreground="#CBD5E1"
+                                              ToolTip.Tip="Tự động tắt tiếng mic khi ngừng nói và chỉ mở khi có giọng nói." />
+                                    <Slider Grid.Column="1" Minimum="-60" Maximum="-20" Value="{Binding MicNoiseGateThresholdDb}"
+                                            IsEnabled="{Binding MicNoiseGate}" Margin="6,0" />
+                                    <TextBlock Grid.Column="2" Text="{Binding MicGateThresholdDisplay}" FontSize="11" FontWeight="Bold" Foreground="#FFB800" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Vocal Polish: Dynamic Compressor & EQ & De-Esser -->
+                        <Border Background="#10192D" CornerRadius="8" Padding="12" BorderBrush="#1F2D4A" BorderThickness="1">
+                            <StackPanel Spacing="10">
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <TextBlock Grid.Column="0" Text="🎙️ LÀM ĐẸP GIỌNG &amp; CHỐNG VỠ RÈ (COMPRESSOR &amp; STUDIO EQ)" FontWeight="Bold" FontSize="11" Foreground="#00F0FF" VerticalAlignment="Center" />
+                                    <CheckBox Grid.Column="2" Content="Khử rít chói (De-Esser)" IsChecked="{Binding MicDeEsser}"
+                                              FontSize="11" Foreground="#64B5F6"
+                                              ToolTip.Tip="Cắt êm dịu các âm xì chói tai 's', 'x', 'ch' khi phát âm sát mic." />
+                                </Grid>
+
+                                <Grid ColumnDefinitions="140,*,70">
+                                    <CheckBox Grid.Column="0" Content="Chống vỡ rè (Compressor):" IsChecked="{Binding MicCompressor}"
+                                              FontSize="11" Foreground="#00E676" FontWeight="SemiBold"
+                                              ToolTip.Tip="Tự động ghìm âm lượng khi nói to hoặc hét, triệt tiêu 100% hiện tượng vỡ rè tiếng." />
+                                    <Slider Grid.Column="1" Minimum="-36" Maximum="-6" Value="{Binding MicCompressorThresholdDb}"
+                                            IsEnabled="{Binding MicCompressor}" Margin="6,0" />
+                                    <TextBlock Grid.Column="2" Text="{Binding MicCompressorThresholdDisplay}" FontSize="11" FontWeight="Bold" Foreground="#FFB800" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                </Grid>
+
+                                <Grid ColumnDefinitions="140,*">
+                                    <TextBlock Grid.Column="0" Text="Âm sắc giọng (3-Band EQ):" FontSize="11" Foreground="#CBD5E1" VerticalAlignment="Center" />
+                                    <ComboBox Grid.Column="1" ItemsSource="{Binding VocalProfileList}" SelectedItem="{Binding SelectedVocalProfile}"
+                                              Height="28" FontSize="11" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Speaker Auto Ducking Block -->
+                        <Border Background="#10192D" CornerRadius="8" Padding="12" BorderBrush="#1F2D4A" BorderThickness="1">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Spacing="4" VerticalAlignment="Center">
+                                    <TextBlock Text="🦆 TỰ GIẢM NHẠC KHI NÓI (AUTO DUCKING SPEAKER)" FontWeight="Bold" FontSize="11" Foreground="#00F0FF" />
+                                    <TextBlock Text="Tự động giảm âm lượng loa (nhạc nền karaoke, game) xuống -14dB khi micro đang thu tiếng nói/hát, tự phục hồi khi ngừng nói." FontSize="10" Foreground="#8892B0" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <CheckBox Grid.Column="1" Content="Bật Auto Ducking" IsChecked="{Binding SpeakerAutoDucking}"
+                                          FontSize="11" Foreground="#00F0FF" FontWeight="Bold" VerticalAlignment="Center" Margin="10,0,0,0" />
+                            </Grid>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Tab 4: Tự động đo độ trễ (Auto Latency Detector) -->
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="⏱️" FontSize="13" VerticalAlignment="Center" />
+                        <TextBlock Text="ĐO ĐỘ TRỄ TỰ ĐỘNG" FontWeight="Bold" FontSize="11" Foreground="#00F0FF" VerticalAlignment="Center" />
+                    </StackPanel>
+                </TabItem.Header>
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="12" Margin="4,8,4,4">
+                        
+                        <Border Background="#10192D" CornerRadius="8" Padding="12" BorderBrush="#00F0FF" BorderThickness="1.5">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="🎯 TỰ ĐỘNG ĐO &amp; BÙ TRỪ LỆCH TIẾNG MICRO VÀ BÀI HÁT (ZERO LATENCY)" FontWeight="Bold" FontSize="12" Foreground="#00F0FF" />
+                                <TextBlock Text="Giải pháp thông minh: Nhấn giữ chuột/chạm tay vào nút bên dưới và hát theo bài hát karaoke trên loa 2-5 giây, ứng dụng sẽ tự động phân tích tương quan sóng âm để tìm chính xác độ trễ mili giây."
+                                           FontSize="10" Foreground="#CBD5E1" TextWrapping="Wrap" />
+
+                                <Grid ColumnDefinitions="*,*" Margin="0,4,0,0">
+                                    <!-- Method 1: Hold-to-measure Live Karaoke Detector -->
+                                    <Border Grid.Column="0" Background="#0A101D" CornerRadius="8" Padding="10" Margin="0,0,5,0" BorderBrush="#00E676" BorderThickness="1.5">
+                                        <StackPanel Spacing="8">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <TextBlock Text="🎵 HÁT THEO NHẠC" FontWeight="Bold" FontSize="11" Foreground="#00E676" />
+                                                <Border Background="#1E293B" CornerRadius="4" Padding="4,1">
+                                                    <TextBlock Text="HOLD-TO-MEASURE" FontSize="9" FontWeight="Bold" Foreground="#00E676" />
+                                                </Border>
+                                            </StackPanel>
+                                            
+                                            <TextBlock Text="Mở nhạc karaoke trên loa, NHẤN GIỮ CHUỘT/CHẠM GIỮ vào nút bên dưới và hát theo 2-5 giây, sau đó BUÔNG RA để tính toán." FontSize="10" Foreground="#8892B0" TextWrapping="Wrap" />
+                                            
+                                            <!-- Nút Hold-To-Measure với sự kiện PointerPressed và PointerReleased -->
+                                            <Border x:Name="HoldMeasureBorder" Background="#00E676" CornerRadius="6" Cursor="Hand" Padding="0,10">
+                                                <TextBlock Text="{Binding LiveHoldButtonText}"
+                                                           Foreground="#080C16" FontWeight="Bold" FontSize="11"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Method 2: Pulse Calibration -->
+                                    <Border Grid.Column="1" Background="#0A101D" CornerRadius="8" Padding="10" Margin="5,0,0,0" BorderBrush="#FFB800" BorderThickness="1.5">
+                                        <StackPanel Spacing="8">
+                                            <TextBlock Text="🔊 XUNG ÂM BÍP CHUẨN" FontWeight="Bold" FontSize="11" Foreground="#FFB800" />
+                                            <TextBlock Text="Phát 1 tiếng bíp ngắn qua loa và dùng thuật toán sóng phản xạ Matched Filter để đo chính xác độ trễ phần cứng (±1ms)." FontSize="10" Foreground="#8892B0" TextWrapping="Wrap" />
+                                            <Button Content="🔊 PHÁT XUNG BÍP ĐO ĐỘ TRỄ" Command="{Binding CalibrateLatencyWithPulseCommand}"
+                                                    IsEnabled="{Binding !IsDetectingLatency}"
+                                                    Background="#FFB800" Foreground="#080C16" FontWeight="Bold" FontSize="11"
+                                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="0,10" CornerRadius="6" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+
+                                <!-- Status & Result Card -->
+                                <Border Background="#0A101D" CornerRadius="8" Padding="12" Margin="0,4,0,0" BorderBrush="#FF007F" BorderThickness="1.5">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Spacing="4" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding LatencyStatusMessage}" FontSize="11" FontWeight="SemiBold" Foreground="#FFFFFF" TextWrapping="Wrap" />
+                                            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasDetectedLatency}">
+                                                <TextBlock Text="{Binding DetectedLatencyMs, StringFormat='Độ trễ phát hiện: {0} ms'}" FontSize="13" FontWeight="Bold" Foreground="#00F0FF" />
+                                                <TextBlock Text="{Binding LatencyConfidence, StringFormat='(Độ tin cậy: {0:F0}%)'}" FontSize="11" Foreground="#00E676" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <Button Grid.Column="1" Content="✅ ÁP DỤNG VÀO MIC OFFSET" Command="{Binding ApplyDetectedLatencyToSyncOffsetCommand}"
+                                                IsEnabled="{Binding HasDetectedLatency}"
+                                                Background="#00F0FF" Foreground="#080C16" FontWeight="Bold" FontSize="11"
+                                                Padding="12,8" CornerRadius="6" VerticalAlignment="Center"
+                                                ToolTip.Tip="Tự động bù trừ độ lệch tiếng vào Mic Sync Offset" />
+                                    </Grid>
+                                </Border>
+
+                                <!-- Manual Sync Offsets -->
+                                <Grid ColumnDefinitions="*,*" Margin="0,4,0,0">
+                                    <StackPanel Grid.Column="0" Spacing="4" Margin="0,0,5,0">
+                                        <TextBlock Text="⏱️ Lệch tiếng Micro hiện tại (Mic Offset):" FontSize="11" Foreground="#CBD5E1" />
+                                        <NumericUpDown Minimum="-500" Maximum="1000" Value="{Binding MicSyncOffsetMs}" Increment="10"
+                                                       FormatString="0 ms" Height="28" FontSize="11" />
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="1" Spacing="4" Margin="5,0,0,0">
+                                        <TextBlock Text="⏱️ Lệch tiếng Loa hiện tại (Speaker Offset):" FontSize="11" Foreground="#CBD5E1" />
+                                        <NumericUpDown Minimum="-500" Maximum="1000" Value="{Binding SpeakerSyncOffsetMs}" Increment="10"
+                                                       FormatString="0 ms" Height="28" FontSize="11" />
+                                    </StackPanel>
+                                </Grid>
+
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+        </TabControl>
+
+        <!-- Footer Bar -->
+        <Border Grid.Row="2" Background="#10192D" BorderBrush="#1F2D4A" BorderThickness="1"
+                CornerRadius="8" Padding="12,8" Margin="0,10,0,0">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <TextBlock Text="Trạng thái hiệu ứng:" FontSize="11" Foreground="#8892B0" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding VocalFxStatusSummary}" FontSize="11" FontWeight="Bold" Foreground="#00F0FF" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <Button Grid.Column="1" Content="Đóng Studio" Command="{Binding CloseVocalStudioCommand}"
+                        Background="#1E293B" Foreground="#64B5F6" FontWeight="SemiBold" FontSize="11"
+                        Padding="14,6" CornerRadius="5" />
+            </Grid>
+        </Border>
+
+    </Grid>
+</UserControl>

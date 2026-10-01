@@ -70,7 +70,9 @@ if (Test-Path "$linuxDir\RecordVideoAudio.GMTPC.Desktop") {
 }
 
 # 3. Thu thập gói Android APK
-Write-Host "`n[3/3] Thu thập gói cài đặt Android (.apk)..." -ForegroundColor Green
+Write-Host "`n[3/3] Đóng gói và thu thập gói cài đặt Android (.apk)..." -ForegroundColor Green
+dotnet publish "$rootDir\RecordVideoAudio.GMTPC.Android\RecordVideoAudio.GMTPC.Android.csproj" -c Release
+
 if (-not (Test-Path $androidDir)) {
     New-Item -ItemType Directory -Path $androidDir -Force | Out-Null
 }

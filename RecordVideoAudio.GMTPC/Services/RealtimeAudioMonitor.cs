@@ -23,26 +23,32 @@ public class RealtimeAudioMonitor : IDisposable
 
         try
         {
-            _enumerator = new MMDeviceEnumerator();
-            
-            try
-            {
-                _speakerDevice = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-            }
-            catch { }
-
-            try
-            {
-                _micDevice = _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia);
-            }
-            catch { }
-
-            _initialized = true;
+            InitWindowsDevices();
         }
         catch
         {
             _initialized = false;
         }
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private void InitWindowsDevices()
+    {
+        _enumerator = new MMDeviceEnumerator();
+        
+        try
+        {
+            _speakerDevice = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+        }
+        catch { }
+
+        try
+        {
+            _micDevice = _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia);
+        }
+        catch { }
+
+        _initialized = true;
     }
 
     public (double speakerLevel, double micLevel) GetCurrentLevels(bool speakerEnabled, double speakerVolume, bool micEnabled, double micVolume)

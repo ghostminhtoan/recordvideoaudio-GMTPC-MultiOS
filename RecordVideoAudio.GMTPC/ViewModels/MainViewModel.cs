@@ -74,8 +74,20 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             SelectedProfile = Profiles[0];
         }
 
-        // Default folder
-        OutputDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Recordings");
+        // Default folder (Bảo vệ an toàn cho cả Windows, Linux và Android)
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            OutputDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Recordings");
+        }
+        else
+        {
+            var basePath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            if (string.IsNullOrEmpty(basePath))
+                basePath = Environment.GetFolderPath(Environment.SpecialFolder.Personal);
+            if (string.IsNullOrEmpty(basePath))
+                basePath = AppDomain.CurrentDomain.BaseDirectory;
+            OutputDirectory = Path.Combine(basePath, "Recordings");
+        }
 
         // Sync initial audio monitoring state with hardware meter
         UpdateAudioMonitoring();
@@ -791,36 +803,57 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         MicPitchShiftSemitones = 0;
     }
 
+    [ObservableProperty]
+    private bool isVocalStudioModalOpen = false;
+
     private VocalStudioWindow? _vocalStudioWindow;
 
     [RelayCommand]
     public void OpenVocalStudio()
     {
-        try
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime)
         {
-            if (_vocalStudioWindow != null)
+            try
             {
-                if (_vocalStudioWindow.WindowState == WindowState.Minimized)
+                if (_vocalStudioWindow != null)
                 {
-                    _vocalStudioWindow.WindowState = WindowState.Normal;
+                    if (_vocalStudioWindow.WindowState == WindowState.Minimized)
+                    {
+                        _vocalStudioWindow.WindowState = WindowState.Normal;
+                    }
+                    _vocalStudioWindow.Activate();
+                    return;
                 }
-                _vocalStudioWindow.Activate();
+
+                _vocalStudioWindow = new VocalStudioWindow
+                {
+                    DataContext = this
+                };
+
+                _vocalStudioWindow.Closed += (s, e) => _vocalStudioWindow = null;
+                // Mở hoàn toàn độc lập không gán Owner, để khi minimize FX window thì MainWindow không bị ẩn/tắt
+                _vocalStudioWindow.Show();
                 return;
             }
-
-            _vocalStudioWindow = new VocalStudioWindow
+            catch (Exception ex)
             {
-                DataContext = this
-            };
+                StatusMessage = $"Không thể mở cửa sổ Vocal Studio độc lập: {ex.Message}";
+            }
+        }
 
-            _vocalStudioWindow.Closed += (s, e) => _vocalStudioWindow = null;
-            // Mở hoàn toàn độc lập không gán Owner, để khi minimize FX window thì MainWindow không bị ẩn/tắt
-            _vocalStudioWindow.Show();
-        }
-        catch (Exception ex)
+        // Trên Android / Mobile hoặc Desktop Fallback: Mở Modal trực tiếp trên màn hình chính
+        IsVocalStudioModalOpen = true;
+    }
+
+    [RelayCommand]
+    public void CloseVocalStudio()
+    {
+        IsVocalStudioModalOpen = false;
+        try
         {
-            StatusMessage = $"Không thể mở cửa sổ Vocal Studio: {ex.Message}";
+            _vocalStudioWindow?.Close();
         }
+        catch { }
     }
 
     [RelayCommand]
