@@ -357,7 +357,7 @@ public class FFmpegPipelineService : IEncoderPipelineService
         var spkLabels = new List<string>();
         var micLabels = new List<string>();
 
-        // 1. Pre-process Speaker Audio (Sync Offset + Gain)
+        // 1. Pre-process Speaker Audio (Sync Offset - Gain/Volume is already processed real-time in WAV buffer)
         string spkSourceLabel = spkInputIndex.HasValue ? $"[{spkInputIndex.Value}:a]" : string.Empty;
         if (spkInputIndex.HasValue)
         {
@@ -372,11 +372,6 @@ public class FFmpegPipelineService : IEncoderPipelineService
                 spkFilters.Add($"atrim=start={trimSec:0.###},asetpts=PTS-STARTPTS");
             }
 
-            if (Math.Abs(config.SpeakerGainDb) >= 0.1)
-            {
-                spkFilters.Add($"volume={config.SpeakerGainDb:0.#}dB");
-            }
-
             if (spkFilters.Count > 0)
             {
                 string spkDspLabel = "spk_dsp";
@@ -385,40 +380,16 @@ public class FFmpegPipelineService : IEncoderPipelineService
             }
         }
 
-        // 2. Pre-process Microphone Audio (Studio DSP Chain: High-Pass -> Denoise -> Gain -> Noise Gate -> Limiter -> Sync Offset)
+        // 2. Pre-process Microphone Audio (Sync Offset & Safety Limiter - Full DSP High-Pass, Denoise, Gate & Gain are already processed real-time in WAV buffer)
         string micSourceLabel = micInputIndex.HasValue ? $"[{micInputIndex.Value}:a]" : string.Empty;
         if (micInputIndex.HasValue)
         {
             var micFilters = new List<string>();
 
-            // Step 1: High-Pass Filter (80Hz) to cut sub-bass rumble & desk vibrations
-            if (config.MicHighPassFilter)
-            {
-                micFilters.Add("highpass=f=80");
-            }
-
-            // Step 2: Studio Noise Suppression (Spectral Subtraction / AI Speech Denoise)
-            if (config.MicNoiseSuppression)
-            {
-                micFilters.Add("afftdn=nr=12:nf=-32:tn=1");
-            }
-
-            // Step 3: Gain Amplification (-30 dB to +30 dB)
-            if (Math.Abs(config.MicGainDb) >= 0.1)
-            {
-                micFilters.Add($"volume={config.MicGainDb:0.#}dB");
-            }
-
-            // Step 4: Noise Gate
-            if (config.MicNoiseGate)
-            {
-                micFilters.Add($"agate=threshold={config.MicNoiseGateThresholdDb:0.#}dB:range=0.01:ratio=10:attack=20:release=250");
-            }
-
-            // Step 5: Limiter to prevent clipping
+            // Safety Limiter to prevent clipping during muxing
             micFilters.Add("alimiter=limit=0.98");
 
-            // Step 6: Sync Offset Delay
+            // Sync Offset Delay
             if (config.MicSyncOffsetMs > 0)
             {
                 micFilters.Add($"adelay={config.MicSyncOffsetMs}|{config.MicSyncOffsetMs}");

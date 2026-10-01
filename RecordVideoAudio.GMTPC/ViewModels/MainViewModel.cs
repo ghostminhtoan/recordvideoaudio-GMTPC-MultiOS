@@ -272,7 +272,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private int speakerSyncOffsetMs = 0; // -500 to +1000 ms
 
     [ObservableProperty]
-    private double speakerGainDb = 0.0; // -30.0 to +30.0 dB
+    private double speakerGainDb = 0.0; // -50.0 to +50.0 dB
 
     [ObservableProperty]
     private bool micAudioEnabled = true;
@@ -287,7 +287,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private int micSyncOffsetMs = 0; // -500 to +1000 ms
 
     [ObservableProperty]
-    private double micGainDb = 0.0; // -30.0 to +30.0 dB
+    private double micGainDb = 0.0; // -50.0 to +50.0 dB
 
     [ObservableProperty]
     private bool micNoiseSuppression = true;
@@ -523,7 +523,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         RefreshCommandPreview();
     }
 
-    partial void OnMicNoiseSuppressionChanged(bool value) => RefreshCommandPreview();
+    partial void OnMicNoiseSuppressionChanged(bool value)
+    {
+        UpdateAudioMonitoring();
+        RefreshCommandPreview();
+    }
 
     partial void OnMicNoiseGateChanged(bool value)
     {
@@ -538,7 +542,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         RefreshCommandPreview();
     }
 
-    partial void OnMicHighPassFilterChanged(bool value) => RefreshCommandPreview();
+    partial void OnMicHighPassFilterChanged(bool value)
+    {
+        UpdateAudioMonitoring();
+        RefreshCommandPreview();
+    }
 
     private void UpdateAudioMonitoring()
     {
@@ -546,7 +554,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             SystemAudioEnabled, SystemAudioVolume,
             MicAudioEnabled, MicAudioVolume,
             SpeakerGainDb, MicGainDb,
-            MicNoiseGate, MicNoiseGateThresholdDb
+            MicNoiseSuppression,
+            MicNoiseGate, MicNoiseGateThresholdDb,
+            MicHighPassFilter
         );
     }
 

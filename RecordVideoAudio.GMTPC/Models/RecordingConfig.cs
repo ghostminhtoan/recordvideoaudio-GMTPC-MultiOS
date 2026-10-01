@@ -41,9 +41,9 @@ public class RecordingConfig
 
     // Audio Processing: Sync Offset (Delay in ms) & Gain (dB)
     public int SpeakerSyncOffsetMs { get; set; } = 0;   // -500 to +1000 ms
-    public double SpeakerGainDb { get; set; } = 0.0;    // -30.0 to +30.0 dB
+    public double SpeakerGainDb { get; set; } = 0.0;    // -50.0 to +50.0 dB
     public int MicSyncOffsetMs { get; set; } = 0;       // -500 to +1000 ms
-    public double MicGainDb { get; set; } = 0.0;        // -30.0 to +30.0 dB
+    public double MicGainDb { get; set; } = 0.0;        // -50.0 to +50.0 dB
 
     // Studio & AI Noise Suppression (RNNoise / Noise Gate / High-Pass)
     public bool MicNoiseSuppression { get; set; } = true;

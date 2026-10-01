@@ -30,7 +30,9 @@ public interface IRecordingEngine : IDisposable
         bool speakerEnabled, double speakerVolume,
         bool micEnabled, double micVolume,
         double speakerGainDb = 0.0, double micGainDb = 0.0,
-        bool micNoiseGate = false, double micNoiseGateThresholdDb = -36.0);
+        bool micNoiseSuppression = true,
+        bool micNoiseGate = false, double micNoiseGateThresholdDb = -36.0,
+        bool micHighPassFilter = true);
 }
 
 public class RecordingEngine : IRecordingEngine
@@ -52,8 +54,10 @@ public class RecordingEngine : IRecordingEngine
     private bool _monitorMic = true;
     private double _monitorMicVolume = 90;
     private double _monitorMicGainDb = 0.0;
+    private bool _monitorMicNoiseSuppression = true;
     private bool _monitorMicNoiseGate = false;
     private double _monitorMicNoiseGateThresholdDb = -36.0;
+    private bool _monitorMicHighPassFilter = true;
 
     public RecordingState CurrentState { get; private set; } = RecordingState.Idle;
     public RecordingStats CurrentStats { get; private set; } = new();
@@ -81,7 +85,9 @@ public class RecordingEngine : IRecordingEngine
         bool speakerEnabled, double speakerVolume,
         bool micEnabled, double micVolume,
         double speakerGainDb = 0.0, double micGainDb = 0.0,
-        bool micNoiseGate = false, double micNoiseGateThresholdDb = -36.0)
+        bool micNoiseSuppression = true,
+        bool micNoiseGate = false, double micNoiseGateThresholdDb = -36.0,
+        bool micHighPassFilter = true)
     {
         _monitorSpeaker = speakerEnabled;
         _monitorSpeakerVolume = speakerVolume;
@@ -89,8 +95,32 @@ public class RecordingEngine : IRecordingEngine
         _monitorMic = micEnabled;
         _monitorMicVolume = micVolume;
         _monitorMicGainDb = micGainDb;
+        _monitorMicNoiseSuppression = micNoiseSuppression;
         _monitorMicNoiseGate = micNoiseGate;
         _monitorMicNoiseGateThresholdDb = micNoiseGateThresholdDb;
+        _monitorMicHighPassFilter = micHighPassFilter;
+
+        // Forward immediately to WasapiAudioRecorder for dynamic real-time DSP during active recording
+        _audioRecorder.UpdateRealtimeSettings(
+            speakerEnabled, speakerVolume, speakerGainDb,
+            micEnabled, micVolume, micGainDb,
+            micNoiseSuppression, micNoiseGate, micNoiseGateThresholdDb,
+            micHighPassFilter
+        );
+
+        if (ActiveConfig != null)
+        {
+            ActiveConfig.RecordSystemAudio = speakerEnabled;
+            ActiveConfig.SystemAudioVolume = (int)speakerVolume;
+            ActiveConfig.SpeakerGainDb = speakerGainDb;
+            ActiveConfig.RecordMicrophone = micEnabled;
+            ActiveConfig.MicrophoneVolume = (int)micVolume;
+            ActiveConfig.MicGainDb = micGainDb;
+            ActiveConfig.MicNoiseSuppression = micNoiseSuppression;
+            ActiveConfig.MicNoiseGate = micNoiseGate;
+            ActiveConfig.MicNoiseGateThresholdDb = micNoiseGateThresholdDb;
+            ActiveConfig.MicHighPassFilter = micHighPassFilter;
+        }
     }
 
     public Task<bool> StartRecordingAsync(RecordingConfig config)
@@ -126,14 +156,20 @@ public class RecordingEngine : IRecordingEngine
             EstimatedSizeBytes = 0
         };
 
-        // 1. Start WASAPI Hardware Audio Recording for Speaker & Mic
+        // 1. Start WASAPI Hardware Audio Recording for Speaker & Mic with Full DSP
         if (config.RecordSystemAudio || config.RecordMicrophone)
         {
             string? audioErr = _audioRecorder.StartRecording(
                 config.RecordSystemAudio,
                 config.SystemAudioVolume,
+                config.SpeakerGainDb,
                 config.RecordMicrophone,
                 config.MicrophoneVolume,
+                config.MicGainDb,
+                config.MicNoiseSuppression,
+                config.MicNoiseGate,
+                config.MicNoiseGateThresholdDb,
+                config.MicHighPassFilter,
                 outDir
             );
             if (!string.IsNullOrEmpty(audioErr))

@@ -339,7 +339,7 @@
                                                 <TextBlock Text="🔊 Khuếch đại (Gain):" FontSize="10" Foreground="#A0AEC0" />
                                                 <TextBlock Grid.Column="1" Text="{Binding SpeakerGainDisplay}" FontSize="10" FontWeight="Bold" Foreground="#00F0FF" />
                                             </Grid>
-                                            <Slider Minimum="-30" Maximum="30" Value="{Binding SpeakerGainDb}" TickFrequency="1" IsSnapToTickEnabled="False" Height="26" />
+                                            <Slider Minimum="-50" Maximum="50" Value="{Binding SpeakerGainDb}" TickFrequency="1" IsSnapToTickEnabled="False" Height="26" />
                                         </StackPanel>
                                     </Grid>
 
@@ -372,7 +372,7 @@
                                     <ProgressBar Minimum="0" Maximum="100" Value="{Binding MicAudioLevel}" Height="6"
                                                  Foreground="#FFB800" Background="#1E293B" CornerRadius="3" />
 
-                                    <!-- DSP Controls for Microphone: Sync Offset & Gain (-30 dB to +30 dB) -->
+                                    <!-- DSP Controls for Microphone: Sync Offset & Gain (-50 dB to +50 dB) -->
                                     <Grid ColumnDefinitions="*,Auto,*" Margin="0,4,0,0">
                                         <!-- Sync Offset -->
                                         <StackPanel Grid.Column="0" Spacing="2">
@@ -394,7 +394,7 @@
                                                 <TextBlock Text="🎙️ Khuếch đại Mic (Gain):" FontSize="10" Foreground="#A0AEC0" />
                                                 <TextBlock Grid.Column="1" Text="{Binding MicGainDisplay}" FontSize="10" FontWeight="Bold" Foreground="#FFB800" />
                                             </Grid>
-                                            <Slider Minimum="-30" Maximum="30" Value="{Binding MicGainDb}" TickFrequency="1" IsSnapToTickEnabled="False" Height="26" />
+                                            <Slider Minimum="-50" Maximum="50" Value="{Binding MicGainDb}" TickFrequency="1" IsSnapToTickEnabled="False" Height="26" />
                                         </StackPanel>
                                     </Grid>
 
