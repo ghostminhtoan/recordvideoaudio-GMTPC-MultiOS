@@ -23,13 +23,11 @@ public class WasapiAudioRecorder : IDisposable
 
     // Live Audio Monitoring / Preview State (OBS-Style Earback Sidetone)
     private volatile bool _isMonitoring = false;
-    private volatile AudioMonitorMode _monitorMode = AudioMonitorMode.MicOnly;
     private volatile float _monitoringVolume = 1.0f;
     private WasapiPlayer? _monitorPlayer;
     private LiveMonitorWaveProvider? _monitorProvider;
 
     public bool IsMonitoring => _isMonitoring;
-    public AudioMonitorMode MonitorMode => _monitorMode;
     public float MonitoringVolume => _monitoringVolume;
 
     // Real-time Audio Configuration (Thread-Safe volatile)
@@ -38,25 +36,12 @@ public class WasapiAudioRecorder : IDisposable
     private volatile float _speakerGainDb = 0.0f;
     private volatile bool _speakerAutoDucking = false;
     private float _currentDuckingGain = 1.0f;
-    private volatile bool _masterMixDucking = true;
 
     private volatile string _speakerDeviceId = string.Empty;
     private volatile string _micDeviceId = string.Empty;
 
-    private readonly FifoSampleBuffer _monitorSpeakerFifo = new(96000);
     private readonly object _deviceChangeLock = new();
     private volatile bool _isDisposingStandalone = false;
-
-    public bool MasterMixDucking
-    {
-        get => _masterMixDucking;
-        set => _masterMixDucking = value;
-    }
-
-    public void SetMasterMixDucking(bool enabled)
-    {
-        _masterMixDucking = enabled;
-    }
 
     public void SetSelectedDevices(string? speakerDeviceId, string? micDeviceId)
     {
@@ -64,6 +49,8 @@ public class WasapiAudioRecorder : IDisposable
         {
             _speakerDeviceId = speakerDeviceId ?? string.Empty;
             _micDeviceId = micDeviceId ?? string.Empty;
+
+            ResetDspFilters();
 
             if (_isMonitoring && !IsRecording)
             {
@@ -78,8 +65,7 @@ public class WasapiAudioRecorder : IDisposable
                         _monitorPlayer = null;
                     }
                     _monitorProvider = null;
-                    _monitorSpeakerFifo.Clear();
-                    Thread.Sleep(40); // Allow native background threads to cleanly exit
+                    Thread.Sleep(40);
                     _isDisposingStandalone = false;
                     StartMonitoring();
                 }
@@ -91,6 +77,7 @@ public class WasapiAudioRecorder : IDisposable
             }
         }
     }
+
 
     private MMDevice? GetRenderDevice(MMDeviceEnumerator enumerator)
     {
@@ -321,11 +308,9 @@ public class WasapiAudioRecorder : IDisposable
             speakerAutoDucking);
     }
 
-    public void SetMonitoring(bool enabled, AudioMonitorMode mode, float volume, bool masterMixDucking = true)
+    public void SetMonitoring(bool enabled, float volume)
     {
-        _monitorMode = mode;
         _monitoringVolume = Math.Clamp(volume, 0.0f, 1.0f);
-        _masterMixDucking = masterMixDucking;
 
         if (enabled && !_isMonitoring)
         {
@@ -337,27 +322,11 @@ public class WasapiAudioRecorder : IDisposable
         }
         else if (_isMonitoring && _monitorProvider != null)
         {
-            _monitorProvider.UpdateSettings(_monitorMode, _monitoringVolume);
+            _monitorProvider.UpdateVolume(_monitoringVolume);
 
-            if (!IsRecording)
+            if (!IsRecording && _micRecorder == null)
             {
-                if (_monitorMode == AudioMonitorMode.MasterMix && _loopbackRecorder == null)
-                {
-                    _monitorSpeakerFifo.Clear();
-                    StartStandaloneLoopbackRecorder();
-                }
-                else if (_monitorMode == AudioMonitorMode.MicOnly && _loopbackRecorder != null)
-                {
-                    var loop = _loopbackRecorder;
-                    _loopbackRecorder = null;
-                    try { loop.StopRecording(); loop.Dispose(); } catch { }
-                    _monitorSpeakerFifo.Clear();
-                }
-
-                if (_micRecorder == null)
-                {
-                    StartStandaloneMicRecorder();
-                }
+                StartStandaloneMicRecorder();
             }
         }
     }
@@ -368,7 +337,6 @@ public class WasapiAudioRecorder : IDisposable
 
         try
         {
-            _monitorSpeakerFifo.Clear();
             using var enumerator = new MMDeviceEnumerator();
             var renderDevice = GetRenderDevice(enumerator);
             if (renderDevice == null) return;
@@ -376,7 +344,7 @@ public class WasapiAudioRecorder : IDisposable
             using var client = renderDevice.CreateAudioClient();
             var renderFormat = client.MixFormat;
 
-            _monitorProvider = new LiveMonitorWaveProvider(renderFormat, _monitorMode, _monitoringVolume);
+            _monitorProvider = new LiveMonitorWaveProvider(renderFormat, _monitoringVolume);
             _monitorPlayer = new WasapiPlayerBuilder()
                 .WithDevice(renderDevice)
                 .Build();
@@ -385,10 +353,9 @@ public class WasapiAudioRecorder : IDisposable
 
             _isMonitoring = true;
 
-            if (!IsRecording)
+            if (!IsRecording && _micRecorder == null)
             {
-                if (_micRecorder == null) StartStandaloneMicRecorder();
-                if (_monitorMode == AudioMonitorMode.MasterMix && _loopbackRecorder == null) StartStandaloneLoopbackRecorder();
+                StartStandaloneMicRecorder();
             }
         }
         catch { }
@@ -410,7 +377,6 @@ public class WasapiAudioRecorder : IDisposable
         }
         catch { }
         _monitorProvider = null;
-        _monitorSpeakerFifo.Clear();
 
         if (!IsRecording)
         {
@@ -462,11 +428,7 @@ public class WasapiAudioRecorder : IDisposable
                                     workSpan,
                                     fmt.BitsPerSample,
                                     fmt.Channels,
-                                    fmt.SampleRate,
-                                    _monitorSpeakerFifo,
-                                    _monitorMode == AudioMonitorMode.MasterMix,
-                                    _masterMixDucking,
-                                    _currentDuckingGain);
+                                    fmt.SampleRate);
                             }
                         }
                     }
@@ -741,11 +703,7 @@ public class WasapiAudioRecorder : IDisposable
                                                 workSpan,
                                                 fmt.BitsPerSample,
                                                 fmt.Channels,
-                                                fmt.SampleRate,
-                                                _monitorSpeakerFifo,
-                                                _monitorMode == AudioMonitorMode.MasterMix,
-                                                _masterMixDucking,
-                                                _currentDuckingGain);
+                                                fmt.SampleRate);
                                         }
                                     }
                                 }
@@ -829,12 +787,9 @@ public class WasapiAudioRecorder : IDisposable
         float linearGain = MathF.Pow(10.0f, _speakerGainDb / 20.0f);
         float totalMultiplier = _speakerVolume * linearGain * _currentDuckingGain;
 
-        bool pushToMonitor = (_isMonitoring && _monitorMode == AudioMonitorMode.MasterMix && _monitorProvider != null);
-
         if (bitsPerSample == 32)
         {
             Span<float> samples = MemoryMarshal.Cast<byte, float>(data);
-            float sumSq = 0.0f;
             for (int i = 0; i < samples.Length; i++)
             {
                 float val = samples[i] * totalMultiplier;
@@ -848,32 +803,12 @@ public class WasapiAudioRecorder : IDisposable
                 {
                     _latestSpeakerAudio[_speakerAudioWritePos] = val;
                     _speakerAudioWritePos = (_speakerAudioWritePos + 1) % 48000;
-                    sumSq += val * val;
-                }
-            }
-
-            if (pushToMonitor && samples.Length > 0)
-            {
-                float rms = MathF.Sqrt(sumSq / Math.Max(1, samples.Length / 2));
-                // Anti-Feedback & Howling Suppression:
-                // Nếu Loopback RMS < 0.0025f (không có âm thanh thực sự ngoài) hoặc
-                // Loopback chỉ đang thu lại tiếng Micro của chính monitorPlayer dội lại:
-                bool isLikelyMicFeedback = (_micVoiceEnvelope > 0.012f && rms < _micVoiceEnvelope * 1.05f);
-                if (rms > 0.0025f && !isLikelyMicFeedback)
-                {
-                    for (int i = 0; i < samples.Length; i += 2)
-                    {
-                        float s0 = samples[i];
-                        float s1 = i + 1 < samples.Length ? samples[i + 1] : s0;
-                        _monitorSpeakerFifo.Write((s0 + s1) * 0.5f);
-                    }
                 }
             }
         }
         else if (bitsPerSample == 16)
         {
             Span<short> samples = MemoryMarshal.Cast<byte, short>(data);
-            float sumSq = 0.0f;
             for (int i = 0; i < samples.Length; i++)
             {
                 float val = (samples[i] / 32768.0f) * totalMultiplier;
@@ -887,22 +822,6 @@ public class WasapiAudioRecorder : IDisposable
                 {
                     _latestSpeakerAudio[_speakerAudioWritePos] = val;
                     _speakerAudioWritePos = (_speakerAudioWritePos + 1) % 48000;
-                    sumSq += val * val;
-                }
-            }
-
-            if (pushToMonitor && samples.Length > 0)
-            {
-                float rms = MathF.Sqrt(sumSq / Math.Max(1, samples.Length / 2));
-                bool isLikelyMicFeedback = (_micVoiceEnvelope > 0.012f && rms < _micVoiceEnvelope * 1.05f);
-                if (rms > 0.0025f && !isLikelyMicFeedback)
-                {
-                    for (int i = 0; i < samples.Length; i += 2)
-                    {
-                        float s0 = samples[i] / 32768.0f;
-                        float s1 = i + 1 < samples.Length ? samples[i + 1] / 32768.0f : s0;
-                        _monitorSpeakerFifo.Write((s0 + s1) * 0.5f);
-                    }
                 }
             }
         }
@@ -1452,10 +1371,6 @@ public class WasapiAudioRecorder : IDisposable
             try { if (_silencePlayer != null) { _silencePlayer.Stop(); _silencePlayer.Dispose(); _silencePlayer = null; } } catch { }
 
             StartStandaloneMicRecorder();
-            if (_monitorMode == AudioMonitorMode.MasterMix)
-            {
-                StartStandaloneLoopbackRecorder();
-            }
         }
         else
         {
@@ -1692,20 +1607,17 @@ public class WasapiAudioRecorder : IDisposable
         private float[] _tempInR = new float[2048];
 
         private volatile float _volume = 1.0f;
-        private volatile AudioMonitorMode _mode = AudioMonitorMode.MicOnly;
 
-        public LiveMonitorWaveProvider(WaveFormat format, AudioMonitorMode mode, float volume)
+        public LiveMonitorWaveProvider(WaveFormat format, float volume)
         {
             _format = format;
-            _mode = mode;
             _volume = Math.Clamp(volume, 0.0f, 1.0f);
         }
 
         public WaveFormat WaveFormat => _format;
 
-        public void UpdateSettings(AudioMonitorMode mode, float volume)
+        public void UpdateVolume(float volume)
         {
-            _mode = mode;
             _volume = Math.Clamp(volume, 0.0f, 1.0f);
         }
 
@@ -1713,11 +1625,7 @@ public class WasapiAudioRecorder : IDisposable
             ReadOnlySpan<byte> micData,
             int bitsPerSample,
             int micChannels,
-            int micSampleRate,
-            FifoSampleBuffer speakerFifo,
-            bool includeSpeaker,
-            bool applyDucking,
-            float duckingGain)
+            int micSampleRate)
         {
             if (micData.IsEmpty) return;
 
@@ -1791,17 +1699,6 @@ public class WasapiAudioRecorder : IDisposable
                         float frac = srcPos - idx0;
                         micL = _tempInL[idx0] * (1.0f - frac) + _tempInL[idx1] * frac;
                         micR = _tempInR[idx0] * (1.0f - frac) + _tempInR[idx1] * frac;
-                    }
-
-                    if (includeSpeaker && speakerFifo != null)
-                    {
-                        float spk = speakerFifo.ReadOne();
-                        if (applyDucking)
-                        {
-                            spk *= duckingGain;
-                        }
-                        micL = Math.Clamp(micL * 0.95f + spk * 0.80f, -1.0f, 1.0f);
-                        micR = Math.Clamp(micR * 0.95f + spk * 0.80f, -1.0f, 1.0f);
                     }
 
                     if (renderChannels == 1)

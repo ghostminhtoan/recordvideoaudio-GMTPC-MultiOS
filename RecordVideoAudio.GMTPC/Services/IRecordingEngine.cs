@@ -44,8 +44,7 @@ public interface IRecordingEngine : IDisposable
         bool speakerAutoDucking = false);
 
     bool IsAudioMonitoringEnabled { get; }
-    void SetAudioMonitoring(bool enabled, AudioMonitorMode mode, double volume, bool masterMixDucking = true);
-    void SetMasterMixDucking(bool enabled);
+    void SetAudioMonitoring(bool enabled, double volume);
     void SetSelectedAudioDevices(string? speakerDeviceId, string? micDeviceId);
 }
 
@@ -108,14 +107,9 @@ public class RecordingEngine : IRecordingEngine
     public WasapiAudioRecorder AudioRecorder => _audioRecorder;
     public bool IsAudioMonitoringEnabled => _audioRecorder.IsMonitoring;
 
-    public void SetAudioMonitoring(bool enabled, AudioMonitorMode mode, double volume, bool masterMixDucking = true)
+    public void SetAudioMonitoring(bool enabled, double volume)
     {
-        _audioRecorder.SetMonitoring(enabled, mode, (float)(volume / 100.0), masterMixDucking);
-    }
-
-    public void SetMasterMixDucking(bool enabled)
-    {
-        _audioRecorder.SetMasterMixDucking(enabled);
+        _audioRecorder.SetMonitoring(enabled, (float)(volume / 100.0));
     }
 
     public void SetSelectedAudioDevices(string? speakerDeviceId, string? micDeviceId)

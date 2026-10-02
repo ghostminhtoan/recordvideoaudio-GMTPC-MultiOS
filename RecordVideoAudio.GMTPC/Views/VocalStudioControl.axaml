@@ -154,25 +154,7 @@
                     <!-- Modes: MicOnly vs MasterMix -->
                     <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                         <TextBlock Text="Chế độ:" FontSize="10.5" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,0,4,0" />
-                        <Button Content="🎤 Chỉ Mic FX" Command="{Binding SetMonitorModeMicOnlyCommand}"
-                                Background="{Binding MonitorMicOnlyBackground}"
-                                Foreground="{Binding MonitorMicOnlyForeground}"
-                                BorderBrush="{Binding MonitorMicOnlyBorder}"
-                                BorderThickness="1" FontWeight="SemiBold" FontSize="10.5"
-                                Padding="10,5" CornerRadius="5"
-                                ToolTip.Tip="Chỉ nghe tiếng micro đã qua các bộ xử lý FX (Không lặp lại nhạc nền đang phát từ máy)" />
-
-                        <Button Content="🎵 Master Mix (Mic + Nhạc)" Command="{Binding SetMonitorModeMasterMixCommand}"
-                                Background="{Binding MonitorMasterMixBackground}"
-                                Foreground="{Binding MonitorMasterMixForeground}"
-                                BorderBrush="{Binding MonitorMasterMixBorder}"
-                                BorderThickness="1" FontWeight="SemiBold" FontSize="10.5"
-                                Padding="10,5" CornerRadius="5"
-                                ToolTip.Tip="Hòa trộn cả tiếng mic qua FX và nhạc nền máy tính để kiểm tra độ hòa hợp chuẩn xác nhất" />
-
-                        <CheckBox Content="🦆 Ducking" IsChecked="{Binding MasterMixDucking}"
-                                  FontSize="10" FontWeight="SemiBold" Foreground="#00F0FF" Margin="2,0,0,0"
-                                  ToolTip.Tip="Tự động hạ âm lượng nhạc nền khi nói/hát ở chế độ Master Mix" />
+                        
                     </StackPanel>
 
                     <!-- Volume Slider -->

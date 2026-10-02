@@ -888,41 +888,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public string AudioMonitoringBadgeColor => IsAudioMonitoringEnabled ? "#00E676" : "#94A3B8";
     public string AudioMonitoringBadgeBackground => IsAudioMonitoringEnabled ? "#143825" : "#1E293B";
 
-    [ObservableProperty]
-    private bool masterMixDucking = true;
-
-    partial void OnMasterMixDuckingChanged(bool value)
-    {
-        _engine.SetMasterMixDucking(value);
-    }
-
     partial void OnIsAudioMonitoringEnabledChanged(bool value)
     {
         AudioMonitoringButtonText = value ? "🔴 ĐANG BẬT KIỂM ÂM (LIVE)" : "🎧 BẬT KIỂM ÂM TAI NGHE";
-        AudioMonitoringBadgeText = value ? (SelectedAudioMonitorMode == AudioMonitorMode.MicOnly ? "🎧 KIỂM ÂM: MIC ONLY" : "🎧 KIỂM ÂM: MASTER MIX") : "KIỂM ÂM: TẮT";
+        AudioMonitoringBadgeText = value ? "🎧 KIỂM ÂM: MIC ONLY" : "KIỂM ÂM: TẮT";
         OnPropertyChanged(nameof(AudioMonitoringButtonBackground));
         OnPropertyChanged(nameof(AudioMonitoringButtonForeground));
         OnPropertyChanged(nameof(AudioMonitoringButtonBorder));
         OnPropertyChanged(nameof(AudioMonitoringBadgeColor));
         OnPropertyChanged(nameof(AudioMonitoringBadgeBackground));
-        _engine.SetAudioMonitoring(value, SelectedAudioMonitorMode, AudioMonitoringVolume, MasterMixDucking);
-    }
-
-    partial void OnSelectedAudioMonitorModeChanged(AudioMonitorMode value)
-    {
-        OnPropertyChanged(nameof(IsMonitorModeMicOnly));
-        OnPropertyChanged(nameof(IsMonitorModeMasterMix));
-        OnPropertyChanged(nameof(MonitorMicOnlyBackground));
-        OnPropertyChanged(nameof(MonitorMicOnlyForeground));
-        OnPropertyChanged(nameof(MonitorMicOnlyBorder));
-        OnPropertyChanged(nameof(MonitorMasterMixBackground));
-        OnPropertyChanged(nameof(MonitorMasterMixForeground));
-        OnPropertyChanged(nameof(MonitorMasterMixBorder));
-        if (IsAudioMonitoringEnabled)
-        {
-            AudioMonitoringBadgeText = value == AudioMonitorMode.MicOnly ? "🎧 KIỂM ÂM: MIC ONLY" : "🎧 KIỂM ÂM: MASTER MIX";
-            _engine.SetAudioMonitoring(IsAudioMonitoringEnabled, value, AudioMonitoringVolume, MasterMixDucking);
-        }
+        _engine.SetAudioMonitoring(value, AudioMonitoringVolume);
     }
 
     partial void OnAudioMonitoringVolumeChanged(double value)
@@ -930,7 +905,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(AudioMonitoringVolumeDisplay));
         if (IsAudioMonitoringEnabled)
         {
-            _engine.SetAudioMonitoring(IsAudioMonitoringEnabled, SelectedAudioMonitorMode, value, MasterMixDucking);
+            _engine.SetAudioMonitoring(IsAudioMonitoringEnabled, value);
         }
     }
 

@@ -544,23 +544,6 @@
                                                 </StackPanel>
                                                 <!-- Mode switches & volume -->
                                                 <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="0,2,0,0">
-                                                    <Button Content="🎤 Mic Only" Command="{Binding SetMonitorModeMicOnlyCommand}"
-                                                            Background="{Binding MonitorMicOnlyBackground}"
-                                                            Foreground="{Binding MonitorMicOnlyForeground}"
-                                                            BorderBrush="{Binding MonitorMicOnlyBorder}"
-                                                            BorderThickness="1" FontSize="9.5" FontWeight="SemiBold"
-                                                            Padding="6,3" CornerRadius="4"
-                                                            ToolTip.Tip="Chỉ nghe tiếng micro qua FX (Không lặp tiếng nhạc nền)" />
-                                                    <Button Content="🎵 Master Mix" Command="{Binding SetMonitorModeMasterMixCommand}"
-                                                            Background="{Binding MonitorMasterMixBackground}"
-                                                            Foreground="{Binding MonitorMasterMixForeground}"
-                                                            BorderBrush="{Binding MonitorMasterMixBorder}"
-                                                            BorderThickness="1" FontSize="9.5" FontWeight="SemiBold"
-                                                            Padding="6,3" CornerRadius="4"
-                                                            ToolTip.Tip="Kiểm âm hòa trộn: Tiếng Mic FX + Nhạc nền loa (Có tùy chọn Ducking)" />
-                                                    <CheckBox Content="🦆 Ducking" IsChecked="{Binding MasterMixDucking}"
-                                                              FontSize="9" FontWeight="SemiBold" Foreground="#00F0FF" Margin="3,0,0,0"
-                                                              ToolTip.Tip="Tự động hạ âm lượng nhạc nền trong tai nghe khi nói/hát ở chế độ Master Mix" />
                                                     <TextBlock Text="🔊" FontSize="10" VerticalAlignment="Center" Margin="3,0,0,0" />
                                                     <Slider Minimum="0" Maximum="100" Value="{Binding AudioMonitoringVolume}" Width="65" VerticalAlignment="Center" Height="22" />
                                                     <TextBlock Text="{Binding AudioMonitoringVolumeDisplay}" FontSize="9.5" FontWeight="Bold" Foreground="#00F0FF" VerticalAlignment="Center" Width="32" />

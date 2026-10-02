@@ -9,6 +9,9 @@ public class RecordingConfig
     public AudioCodecType AudioCodec { get; set; } = AudioCodecType.AAC;
     public RateControlMode RateControl { get; set; } = RateControlMode.CRF;
 
+    // Portable Output Directory
+    public string OutputDirectory { get; set; } = string.Empty;
+
     // Rate Control Parameters
     public int CrfValue { get; set; } = 23;        // 0 (lossless) - 51 (worst)
     public int CqpValue { get; set; } = 20;        // 0 - 51
@@ -106,8 +109,6 @@ public class RecordingConfig
     public int PauseVkCode { get; set; } = 0x38; // D8
     public string PauseKeyName { get; set; } = "D8";
 
-    // Output Directory
-    public string OutputDirectory { get; set; } = string.Empty;
     public string CustomFileName { get; set; } = string.Empty;
 }
 
