@@ -45,10 +45,10 @@ public class RecordingConfig
     public AudioTrackMode AudioTrackMode { get; set; } = AudioTrackMode.MixToSingleTrack;
 
     // Audio Processing: Sync Offset (Delay in ms) & Gain (dB)
-    public int SpeakerSyncOffsetMs { get; set; } = 0;   // -500 to +1000 ms
+    public int SpeakerSyncOffsetMs { get; set; } = 0;   // -1000 to +1000 ms
     public double SpeakerGainDb { get; set; } = 0.0;    // -50.0 to +50.0 dB
     public bool SpeakerAutoDucking { get; set; } = false; // Tự động giảm âm lượng loa khi micro đang thu tiếng nói
-    public int MicSyncOffsetMs { get; set; } = 0;       // -500 to +1000 ms
+    public int MicSyncOffsetMs { get; set; } = 0;       // -1000 to +1000 ms
     public double MicGainDb { get; set; } = 0.0;        // -50.0 to +50.0 dB
 
     // Studio & AI Noise Suppression (RNNoise / Noise Gate / High-Pass)

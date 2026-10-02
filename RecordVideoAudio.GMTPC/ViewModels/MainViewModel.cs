@@ -319,7 +319,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private double systemAudioLevel = 0;
 
     [ObservableProperty]
-    private int speakerSyncOffsetMs = 0; // -500 to +1000 ms
+    private int speakerSyncOffsetMs = 0; // -1000 to +1000 ms
 
     [ObservableProperty]
     private double speakerGainDb = 0.0; // -50.0 to +50.0 dB
@@ -337,7 +337,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private double micAudioLevel = 0;
 
     [ObservableProperty]
-    private int micSyncOffsetMs = 0; // -500 to +1000 ms
+    private int micSyncOffsetMs = 0; // -1000 to +1000 ms
 
     [ObservableProperty]
     private double micGainDb = 0.0; // -50.0 to +50.0 dB
