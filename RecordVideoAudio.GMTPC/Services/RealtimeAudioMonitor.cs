@@ -11,6 +11,8 @@ public class RealtimeAudioMonitor : IDisposable
     private MMDevice? _micDevice;
     private bool _initialized;
 
+    private readonly object _lock = new();
+
     public RealtimeAudioMonitor()
     {
         InitializeDevices();
@@ -34,33 +36,49 @@ public class RealtimeAudioMonitor : IDisposable
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     private void InitWindowsDevices(string? speakerDeviceId = null, string? micDeviceId = null)
     {
-        _enumerator ??= new MMDeviceEnumerator();
-        
+        MMDevice? newSpeaker = null;
+        MMDevice? newMic = null;
+
         try
         {
-            _speakerDevice?.Dispose();
-            _speakerDevice = null;
+            _enumerator ??= new MMDeviceEnumerator();
+
             if (!string.IsNullOrEmpty(speakerDeviceId) && speakerDeviceId != "default")
             {
-                try { _speakerDevice = _enumerator.GetDevice(speakerDeviceId); } catch { }
+                try { newSpeaker = _enumerator.GetDevice(speakerDeviceId); } catch { }
             }
-            _speakerDevice ??= _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            newSpeaker ??= _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
         }
         catch { }
 
         try
         {
-            _micDevice?.Dispose();
-            _micDevice = null;
+            _enumerator ??= new MMDeviceEnumerator();
+
             if (!string.IsNullOrEmpty(micDeviceId) && micDeviceId != "default")
             {
-                try { _micDevice = _enumerator.GetDevice(micDeviceId); } catch { }
+                try { newMic = _enumerator.GetDevice(micDeviceId); } catch { }
             }
-            _micDevice ??= _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia);
+            newMic ??= _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia);
         }
         catch { }
 
-        _initialized = true;
+        MMDevice? oldSpeaker;
+        MMDevice? oldMic;
+
+        lock (_lock)
+        {
+            oldSpeaker = _speakerDevice;
+            oldMic = _micDevice;
+
+            _speakerDevice = newSpeaker;
+            _micDevice = newMic;
+            _initialized = (_speakerDevice != null || _micDevice != null);
+        }
+
+        // Dispose previous COM endpoints outside lock to prevent deadlocks and access violation on active polling threads
+        try { oldSpeaker?.Dispose(); } catch { }
+        try { oldMic?.Dispose(); } catch { }
     }
 
     public void UpdateSelectedDevices(string? speakerDeviceId, string? micDeviceId)
@@ -89,39 +107,56 @@ public class RealtimeAudioMonitor : IDisposable
         double speaker = 0;
         double mic = 0;
 
-        if (speakerEnabled && _speakerDevice != null)
+        MMDevice? currentSpeaker;
+        MMDevice? currentMic;
+
+        lock (_lock)
+        {
+            currentSpeaker = _speakerDevice;
+            currentMic = _micDevice;
+        }
+
+        if (speakerEnabled && currentSpeaker != null)
         {
             try
             {
-                float peak = _speakerDevice.AudioMeterInformation.MasterPeakValue;
-                double gainMultiplier = Math.Pow(10.0, speakerGainDb / 20.0);
-                speaker = Math.Min(100.0, Math.Max(0.0, peak * 100.0 * (speakerVolume / 100.0) * gainMultiplier));
+                var meter = currentSpeaker.AudioMeterInformation;
+                if (meter != null)
+                {
+                    float peak = meter.MasterPeakValue;
+                    double gainMultiplier = Math.Pow(10.0, speakerGainDb / 20.0);
+                    speaker = Math.Min(100.0, Math.Max(0.0, peak * 100.0 * (speakerVolume / 100.0) * gainMultiplier));
+                }
             }
             catch
             {
-                InitializeDevices();
+                // Silently fallback without reinitializing in tight polling loop
             }
         }
 
-        if (micEnabled && _micDevice != null)
+        if (micEnabled && currentMic != null)
         {
             try
             {
-                float peak = _micDevice.AudioMeterInformation.MasterPeakValue;
-                double gateLinear = Math.Pow(10.0, micNoiseGateThresholdDb / 20.0);
-                if (micNoiseGate && peak < gateLinear)
+                var meter = currentMic.AudioMeterInformation;
+                if (meter != null)
                 {
-                    mic = 0;
-                }
-                else
-                {
-                    double gainMultiplier = Math.Pow(10.0, micGainDb / 20.0);
-                    mic = Math.Min(100.0, Math.Max(0.0, peak * 100.0 * (micVolume / 100.0) * gainMultiplier));
+                    float peak = meter.MasterPeakValue;
+                    double gateLinear = Math.Pow(10.0, micNoiseGateThresholdDb / 20.0);
+                    if (micNoiseGate && peak < gateLinear)
+                    {
+                        mic = 0;
+                    }
+                    else
+                    {
+                        double gainMultiplier = Math.Pow(10.0, micGainDb / 20.0);
+                        mic = Math.Min(100.0, Math.Max(0.0, peak * 100.0 * (micVolume / 100.0) * gainMultiplier));
+                    }
                 }
             }
             catch
             {
-                InitializeDevices();
+                // Silently fallback without reinitializing in tight polling loop
             }
         }
 
@@ -130,8 +165,23 @@ public class RealtimeAudioMonitor : IDisposable
 
     public void Dispose()
     {
-        _speakerDevice?.Dispose();
-        _micDevice?.Dispose();
-        _enumerator?.Dispose();
+        MMDevice? spk;
+        MMDevice? mic;
+        MMDeviceEnumerator? enumerator;
+
+        lock (_lock)
+        {
+            _initialized = false;
+            spk = _speakerDevice;
+            _speakerDevice = null;
+            mic = _micDevice;
+            _micDevice = null;
+            enumerator = _enumerator;
+            _enumerator = null;
+        }
+
+        try { spk?.Dispose(); } catch { }
+        try { mic?.Dispose(); } catch { }
+        try { enumerator?.Dispose(); } catch { }
     }
 }

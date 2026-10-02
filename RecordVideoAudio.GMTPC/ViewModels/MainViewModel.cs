@@ -888,6 +888,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public string AudioMonitoringBadgeColor => IsAudioMonitoringEnabled ? "#00E676" : "#94A3B8";
     public string AudioMonitoringBadgeBackground => IsAudioMonitoringEnabled ? "#143825" : "#1E293B";
 
+    [ObservableProperty]
+    private bool masterMixDucking = true;
+
+    partial void OnMasterMixDuckingChanged(bool value)
+    {
+        _engine.SetMasterMixDucking(value);
+    }
+
     partial void OnIsAudioMonitoringEnabledChanged(bool value)
     {
         AudioMonitoringButtonText = value ? "🔴 ĐANG BẬT KIỂM ÂM (LIVE)" : "🎧 BẬT KIỂM ÂM TAI NGHE";
@@ -897,7 +905,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(AudioMonitoringButtonBorder));
         OnPropertyChanged(nameof(AudioMonitoringBadgeColor));
         OnPropertyChanged(nameof(AudioMonitoringBadgeBackground));
-        _engine.SetAudioMonitoring(value, SelectedAudioMonitorMode, AudioMonitoringVolume);
+        _engine.SetAudioMonitoring(value, SelectedAudioMonitorMode, AudioMonitoringVolume, MasterMixDucking);
     }
 
     partial void OnSelectedAudioMonitorModeChanged(AudioMonitorMode value)
@@ -913,7 +921,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         if (IsAudioMonitoringEnabled)
         {
             AudioMonitoringBadgeText = value == AudioMonitorMode.MicOnly ? "🎧 KIỂM ÂM: MIC ONLY" : "🎧 KIỂM ÂM: MASTER MIX";
-            _engine.SetAudioMonitoring(IsAudioMonitoringEnabled, value, AudioMonitoringVolume);
+            _engine.SetAudioMonitoring(IsAudioMonitoringEnabled, value, AudioMonitoringVolume, MasterMixDucking);
         }
     }
 
@@ -922,7 +930,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(AudioMonitoringVolumeDisplay));
         if (IsAudioMonitoringEnabled)
         {
-            _engine.SetAudioMonitoring(IsAudioMonitoringEnabled, SelectedAudioMonitorMode, value);
+            _engine.SetAudioMonitoring(IsAudioMonitoringEnabled, SelectedAudioMonitorMode, value, MasterMixDucking);
         }
     }
 
@@ -1330,14 +1338,22 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     partial void OnSelectedSpeakerDeviceChanged(AudioDeviceInfo? value)
     {
-        _engine.SetSelectedAudioDevices(SelectedSpeakerDevice?.Id, SelectedMicrophoneDevice?.Id);
-        RefreshActiveAudioDevicesInfo();
+        try
+        {
+            _engine.SetSelectedAudioDevices(SelectedSpeakerDevice?.Id, SelectedMicrophoneDevice?.Id);
+            RefreshActiveAudioDevicesInfo();
+        }
+        catch { }
     }
 
     partial void OnSelectedMicrophoneDeviceChanged(AudioDeviceInfo? value)
     {
-        _engine.SetSelectedAudioDevices(SelectedSpeakerDevice?.Id, SelectedMicrophoneDevice?.Id);
-        RefreshActiveAudioDevicesInfo();
+        try
+        {
+            _engine.SetSelectedAudioDevices(SelectedSpeakerDevice?.Id, SelectedMicrophoneDevice?.Id);
+            RefreshActiveAudioDevicesInfo();
+        }
+        catch { }
     }
 
     [RelayCommand]
