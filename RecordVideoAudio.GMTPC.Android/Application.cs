@@ -1,4 +1,4 @@
-﻿using Android.App;
+using Android.App;
 using Android.Runtime;
 using Avalonia;
 using Avalonia.Android;
@@ -10,6 +10,12 @@ namespace RecordVideoAudio.GMTPC.Android
     {
         protected Application(nint javaReference, JniHandleOwnership transfer) : base(javaReference, transfer)
         {
+        }
+
+        public override void OnCreate()
+        {
+            CrashHandler.Initialize(this);
+            base.OnCreate();
         }
 
         protected override AppBuilder CustomizeAppBuilder(AppBuilder builder)

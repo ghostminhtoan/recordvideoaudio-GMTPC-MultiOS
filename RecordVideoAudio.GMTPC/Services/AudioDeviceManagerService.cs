@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using NAudio.CoreAudioApi;
@@ -9,8 +10,9 @@ namespace RecordVideoAudio.GMTPC.Services;
 
 public class AudioDeviceManagerService : IDisposable
 {
-    private MMDeviceEnumerator? _enumerator;
-    private MMDeviceNotificationClient? _notificationClient;
+    // Fields stored as object? to prevent Android JIT from resolving NAudio COM types at class-load time
+    private object? _enumerator;           // MMDeviceEnumerator on Windows
+    private object? _notificationClient;   // MMDeviceNotificationClient on Windows
     private Timer? _debounceTimer;
     private readonly object _lock = new();
     private bool _isDisposed;
@@ -38,17 +40,19 @@ public class AudioDeviceManagerService : IDisposable
         }
     }
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    [MethodImpl(MethodImplOptions.NoInlining)]
     private void InitHotplugWindows()
     {
-        _enumerator = new MMDeviceEnumerator();
+        var enumerator = new NAudio.CoreAudioApi.MMDeviceEnumerator();
+        _enumerator = enumerator;
         // Use nonblocking audio thread callbacks, we marshal and debounce ourselves
-        _notificationClient = _enumerator.CreateNotificationClient(useSynchronizationContext: false);
+        var client = enumerator.CreateNotificationClient(useSynchronizationContext: false);
+        _notificationClient = client;
 
-        _notificationClient.DeviceAdded += OnDeviceAdded;
-        _notificationClient.DeviceRemoved += OnDeviceRemoved;
-        _notificationClient.DeviceStateChanged += OnDeviceStateChanged;
-        _notificationClient.DefaultDeviceChanged += OnDefaultDeviceChanged;
+        client.DeviceAdded += OnDeviceAdded;
+        client.DeviceRemoved += OnDeviceRemoved;
+        client.DeviceStateChanged += OnDeviceStateChanged;
+        client.DefaultDeviceChanged += OnDefaultDeviceChanged;
     }
 
     private void OnDeviceAdded(object? sender, DeviceNotificationEventArgs e)
@@ -288,15 +292,28 @@ public class AudioDeviceManagerService : IDisposable
             _debounceTimer = null;
         }
 
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            try
+            {
+                DisposeWindows();
+            }
+            catch { }
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void DisposeWindows()
+    {
         try
         {
-            if (_notificationClient != null)
+            if (_notificationClient is MMDeviceNotificationClient client)
             {
-                _notificationClient.DeviceAdded -= OnDeviceAdded;
-                _notificationClient.DeviceRemoved -= OnDeviceRemoved;
-                _notificationClient.DeviceStateChanged -= OnDeviceStateChanged;
-                _notificationClient.DefaultDeviceChanged -= OnDefaultDeviceChanged;
-                _notificationClient.Dispose();
+                client.DeviceAdded -= OnDeviceAdded;
+                client.DeviceRemoved -= OnDeviceRemoved;
+                client.DeviceStateChanged -= OnDeviceStateChanged;
+                client.DefaultDeviceChanged -= OnDefaultDeviceChanged;
+                client.Dispose();
                 _notificationClient = null;
             }
         }
@@ -304,8 +321,11 @@ public class AudioDeviceManagerService : IDisposable
 
         try
         {
-            _enumerator?.Dispose();
-            _enumerator = null;
+            if (_enumerator is IDisposable enumDisp)
+            {
+                enumDisp.Dispose();
+                _enumerator = null;
+            }
         }
         catch { }
     }

@@ -1,14 +1,15 @@
 using System;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using NAudio.CoreAudioApi;
 
 namespace RecordVideoAudio.GMTPC.Services;
 
 public class RealtimeAudioMonitor : IDisposable
 {
-    private MMDeviceEnumerator? _enumerator;
-    private MMDevice? _speakerDevice;
-    private MMDevice? _micDevice;
+    // Fields stored as object? to prevent Android JIT from resolving NAudio COM types at class-load time
+    private object? _enumerator;       // MMDeviceEnumerator on Windows
+    private object? _speakerDevice;    // MMDevice on Windows
+    private object? _micDevice;        // MMDevice on Windows
     private bool _initialized;
 
     private readonly object _lock = new();
@@ -33,38 +34,48 @@ public class RealtimeAudioMonitor : IDisposable
         }
     }
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    [MethodImpl(MethodImplOptions.NoInlining)]
     private void InitWindowsDevices(string? speakerDeviceId = null, string? micDeviceId = null)
     {
-        MMDevice? newSpeaker = null;
-        MMDevice? newMic = null;
+        NAudio.CoreAudioApi.MMDevice? newSpeaker = null;
+        NAudio.CoreAudioApi.MMDevice? newMic = null;
 
         try
         {
-            _enumerator ??= new MMDeviceEnumerator();
+            var enumerator = _enumerator as NAudio.CoreAudioApi.MMDeviceEnumerator;
+            if (enumerator == null)
+            {
+                enumerator = new NAudio.CoreAudioApi.MMDeviceEnumerator();
+                _enumerator = enumerator;
+            }
 
             if (!string.IsNullOrEmpty(speakerDeviceId) && speakerDeviceId != "default")
             {
-                try { newSpeaker = _enumerator.GetDevice(speakerDeviceId); } catch { }
+                try { newSpeaker = enumerator.GetDevice(speakerDeviceId); } catch { }
             }
-            newSpeaker ??= _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            newSpeaker ??= enumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Render, NAudio.CoreAudioApi.Role.Multimedia);
         }
         catch { }
 
         try
         {
-            _enumerator ??= new MMDeviceEnumerator();
+            var enumerator = _enumerator as NAudio.CoreAudioApi.MMDeviceEnumerator;
+            if (enumerator == null)
+            {
+                enumerator = new NAudio.CoreAudioApi.MMDeviceEnumerator();
+                _enumerator = enumerator;
+            }
 
             if (!string.IsNullOrEmpty(micDeviceId) && micDeviceId != "default")
             {
-                try { newMic = _enumerator.GetDevice(micDeviceId); } catch { }
+                try { newMic = enumerator.GetDevice(micDeviceId); } catch { }
             }
-            newMic ??= _enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia);
+            newMic ??= enumerator.GetDefaultAudioEndpoint(NAudio.CoreAudioApi.DataFlow.Capture, NAudio.CoreAudioApi.Role.Multimedia);
         }
         catch { }
 
-        MMDevice? oldSpeaker;
-        MMDevice? oldMic;
+        object? oldSpeaker;
+        object? oldMic;
 
         lock (_lock)
         {
@@ -77,8 +88,8 @@ public class RealtimeAudioMonitor : IDisposable
         }
 
         // Dispose previous COM endpoints outside lock to prevent deadlocks and access violation on active polling threads
-        try { oldSpeaker?.Dispose(); } catch { }
-        try { oldMic?.Dispose(); } catch { }
+        try { (oldSpeaker as IDisposable)?.Dispose(); } catch { }
+        try { (oldMic as IDisposable)?.Dispose(); } catch { }
     }
 
     public void UpdateSelectedDevices(string? speakerDeviceId, string? micDeviceId)
@@ -114,7 +125,7 @@ public class RealtimeAudioMonitor : IDisposable
         }
     }
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    [MethodImpl(MethodImplOptions.NoInlining)]
     private (double speakerLevel, double micLevel) GetWindowsLevels(
         bool speakerEnabled, double speakerVolume, double speakerGainDb,
         bool micEnabled, double micVolume, double micGainDb,
@@ -123,13 +134,13 @@ public class RealtimeAudioMonitor : IDisposable
         double speaker = 0;
         double mic = 0;
 
-        MMDevice? currentSpeaker;
-        MMDevice? currentMic;
+        NAudio.CoreAudioApi.MMDevice? currentSpeaker;
+        NAudio.CoreAudioApi.MMDevice? currentMic;
 
         lock (_lock)
         {
-            currentSpeaker = _speakerDevice;
-            currentMic = _micDevice;
+            currentSpeaker = _speakerDevice as NAudio.CoreAudioApi.MMDevice;
+            currentMic = _micDevice as NAudio.CoreAudioApi.MMDevice;
         }
 
         if (speakerEnabled && currentSpeaker != null)
@@ -185,12 +196,12 @@ public class RealtimeAudioMonitor : IDisposable
         catch { }
     }
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    [MethodImpl(MethodImplOptions.NoInlining)]
     private void DisposeWindows()
     {
-        MMDevice? spk;
-        MMDevice? mic;
-        MMDeviceEnumerator? enumerator;
+        object? spk;
+        object? mic;
+        object? enumerator;
 
         lock (_lock)
         {
@@ -203,8 +214,8 @@ public class RealtimeAudioMonitor : IDisposable
             _enumerator = null;
         }
 
-        try { spk?.Dispose(); } catch { }
-        try { mic?.Dispose(); } catch { }
-        try { enumerator?.Dispose(); } catch { }
+        try { (spk as IDisposable)?.Dispose(); } catch { }
+        try { (mic as IDisposable)?.Dispose(); } catch { }
+        try { (enumerator as IDisposable)?.Dispose(); } catch { }
     }
 }

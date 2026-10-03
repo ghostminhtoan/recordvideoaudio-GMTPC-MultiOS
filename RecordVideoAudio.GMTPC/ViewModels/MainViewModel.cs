@@ -24,7 +24,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly IRecordingEngine _engine;
     private readonly IEncoderPipelineService _pipeline;
     private readonly LocalizationService _loc = LocalizationService.Instance;
-    private readonly GlobalHotKeyService _hotKeyService;
+    private readonly GlobalHotKeyService? _hotKeyService;
     private readonly AudioDeviceManagerService _audioDeviceManager;
     private FloatingMiniBarWindow? _miniBarWindow;
 
@@ -104,23 +104,28 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         });
 
         // Global hotkey hook (Default: Ctrl+Alt+Shift+D5 for Record, Ctrl+Alt+Shift+D8 for Pause)
-        _hotKeyService = new GlobalHotKeyService();
-        _hotKeyService.RecordTogglePressed += () => Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            if (CurrentState == RecordingState.Idle)
+            _hotKeyService = new GlobalHotKeyService();
+            _hotKeyService.RecordTogglePressed += () => Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
             {
-                await StartRecordingAsync();
-            }
-            else
-            {
-                await StopRecordingAsync();
-            }
-        });
+                if (CurrentState == RecordingState.Idle)
+                {
+                    await StartRecordingAsync();
+                }
+                else
+                {
+                    await StopRecordingAsync();
+                }
+            });
 
-        _hotKeyService.PauseTogglePressed += () => Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
-        {
-            await TogglePauseResumeAsync();
-        });
+            _hotKeyService.PauseTogglePressed += () => Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+            {
+                await TogglePauseResumeAsync();
+            });
+
+            _latencyDetector = new AudioLatencyDetectorService();
+        }
 
         UpdateTranslations();
         UpdateHotKeys();
@@ -427,7 +432,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public string MicReverbWetMixDisplay => $"{MicReverbWetMix:F0}%";
 
     // Auto Latency Detector State
-    private readonly AudioLatencyDetectorService _latencyDetector = new();
+    private readonly AudioLatencyDetectorService? _latencyDetector;
 
     [ObservableProperty]
     private bool isDetectingLatency = false;
@@ -1218,6 +1223,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private async Task CalibrateLatencyWithPulseAsync()
     {
         if (IsDetectingLatency) return;
+        if (_latencyDetector == null)
+        {
+            LatencyStatusMessage = "Tính năng đo độ trễ chỉ hỗ trợ trên Windows.";
+            return;
+        }
+
         IsDetectingLatency = true;
         LatencyStatusMessage = "Đang phát xung bíp kiểm âm 10ms...";
         HasDetectedLatency = false;
@@ -1347,6 +1358,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     public void RefreshActiveAudioDevicesInfo()
     {
+        if (_latencyDetector == null)
+        {
+            ActiveAudioDevicesInfo = $"🎧 Thiết bị phát: {SelectedSpeakerDevice?.Name ?? "Mặc định"}   |   🎙️ Micro: {SelectedMicrophoneDevice?.Name ?? "Mặc định"}";
+            return;
+        }
+
         var (render, capture) = _latencyDetector.GetActiveDeviceNames(SelectedSpeakerDevice?.Id, SelectedMicrophoneDevice?.Id);
         ActiveAudioDevicesInfo = $"🎧 Thiết bị phát: {render}   |   🎙️ Micro: {capture}";
     }
@@ -1354,6 +1371,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public void StartLiveAudioHoldCapture(LatencyMeasurementTarget target = LatencyMeasurementTarget.SpeakerAndMic)
     {
         if (IsDetectingLatency) return;
+        if (_latencyDetector == null)
+        {
+            LatencyStatusMessage = "Tính năng đo độ trễ chỉ hỗ trợ trên Windows.";
+            return;
+        }
+
         HasDetectedLatency = false;
         IsDetectingLatency = true;
         IsHoldingLiveMeasure = true;
@@ -1405,6 +1428,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public void StopLiveAudioHoldCapture()
     {
         if (!IsHoldingLiveMeasure) return;
+        if (_latencyDetector == null) return;
 
         _liveHoldTimer?.Stop();
         _liveHoldTimer = null;
@@ -1558,7 +1582,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private void UpdateHotKeys()
     {
         var config = BuildCurrentConfig();
-        _hotKeyService.UpdateHotKeys(config);
+        _hotKeyService?.UpdateHotKeys(config);
         if (CurrentState == RecordingState.Idle)
         {
             StatusMessage = $"Hệ thống sẵn sàng ghi hình. (Phím tắt: {GetRecordShortcutDisplay()} = Quay/Dừng, {GetPauseShortcutDisplay()} = Tạm dừng)";
@@ -1966,9 +1990,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         try { _liveHoldTimer?.Stop(); } catch { }
         try { _deviceNotificationTimer?.Stop(); } catch { }
         try { _audioDeviceManager.Dispose(); } catch { }
-        try { _hotKeyService.Dispose(); } catch { }
+        try { _hotKeyService?.Dispose(); } catch { }
         try { _engine.Dispose(); } catch { }
-        try { _latencyDetector.Dispose(); } catch { }
+        try { _latencyDetector?.Dispose(); } catch { }
         try { _vocalStudioWindow?.Close(); } catch { }
         try { _miniBarWindow?.Close(); } catch { }
     }

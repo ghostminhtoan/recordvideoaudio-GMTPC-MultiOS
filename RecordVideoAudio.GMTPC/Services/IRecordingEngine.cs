@@ -22,7 +22,7 @@ public interface IRecordingEngine : IDisposable
     event Action<double, double>? AudioLevelsUpdated; // speakerLevel, micLevel (0-100)
     event Action? AutoStopped;
 
-    WasapiAudioRecorder AudioRecorder { get; }
+    WasapiAudioRecorder? AudioRecorder { get; }
 
     Task<bool> StartRecordingAsync(RecordingConfig config);
     Task<bool> PauseRecordingAsync();
@@ -51,8 +51,8 @@ public interface IRecordingEngine : IDisposable
 public class RecordingEngine : IRecordingEngine
 {
     private readonly IEncoderPipelineService _pipelineService;
-    private readonly RealtimeAudioMonitor _audioMonitor;
-    private readonly WasapiAudioRecorder _audioRecorder;
+    private readonly RealtimeAudioMonitor? _audioMonitor;
+    private readonly WasapiAudioRecorder? _audioRecorder;
     private readonly System.Timers.Timer _levelTimer;
 
     private Process? _ffmpegProcess;
@@ -95,8 +95,11 @@ public class RecordingEngine : IRecordingEngine
     public RecordingEngine(IEncoderPipelineService? pipelineService = null)
     {
         _pipelineService = pipelineService ?? new FFmpegPipelineService();
-        _audioMonitor = new RealtimeAudioMonitor();
-        _audioRecorder = new WasapiAudioRecorder();
+        if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
+        {
+            _audioMonitor = new RealtimeAudioMonitor();
+            _audioRecorder = new WasapiAudioRecorder();
+        }
 
         // 60ms timer for smooth 16+ FPS real-time audio VU meter tracing
         _levelTimer = new System.Timers.Timer(60);
@@ -104,18 +107,18 @@ public class RecordingEngine : IRecordingEngine
         _levelTimer.Start();
     }
 
-    public WasapiAudioRecorder AudioRecorder => _audioRecorder;
-    public bool IsAudioMonitoringEnabled => _audioRecorder.IsMonitoring;
+    public WasapiAudioRecorder? AudioRecorder => _audioRecorder;
+    public bool IsAudioMonitoringEnabled => _audioRecorder?.IsMonitoring ?? false;
 
     public void SetAudioMonitoring(bool enabled, double volume)
     {
-        _audioRecorder.SetMonitoring(enabled, (float)(volume / 100.0));
+        _audioRecorder?.SetMonitoring(enabled, (float)(volume / 100.0));
     }
 
     public void SetSelectedAudioDevices(string? speakerDeviceId, string? micDeviceId)
     {
-        _audioRecorder.SetSelectedDevices(speakerDeviceId, micDeviceId);
-        _audioMonitor.UpdateSelectedDevices(speakerDeviceId, micDeviceId);
+        _audioRecorder?.SetSelectedDevices(speakerDeviceId, micDeviceId);
+        _audioMonitor?.UpdateSelectedDevices(speakerDeviceId, micDeviceId);
     }
 
     private bool _monitorMicEcho = false;
@@ -174,7 +177,7 @@ public class RecordingEngine : IRecordingEngine
         _monitorMicReverbWetMix = micReverbWetMix;
 
         // Forward immediately to WasapiAudioRecorder for dynamic real-time DSP during active recording
-        _audioRecorder.UpdateRealtimeSettings(
+        _audioRecorder?.UpdateRealtimeSettings(
             speakerEnabled, speakerVolume, speakerGainDb,
             micEnabled, micVolume, micGainDb,
             micNoiseSuppression, micNoiseGate, micNoiseGateThresholdDb,
@@ -256,7 +259,7 @@ public class RecordingEngine : IRecordingEngine
         };
 
         // 1. Start WASAPI Hardware Audio Recording for Speaker & Mic with Full DSP
-        if (config.RecordSystemAudio || config.RecordMicrophone)
+        if ((config.RecordSystemAudio || config.RecordMicrophone) && _audioRecorder != null)
         {
             string? audioErr = _audioRecorder.StartRecording(
                 config.RecordSystemAudio,
@@ -421,7 +424,12 @@ public class RecordingEngine : IRecordingEngine
         }
 
         // 2. Stop WASAPI Audio Recording
-        var (speakerWav, micWav) = _audioRecorder.StopRecording();
+        string? speakerWav = null;
+        string? micWav = null;
+        if (_audioRecorder != null)
+        {
+            (speakerWav, micWav) = _audioRecorder.StopRecording();
+        }
 
         string finalPath = CurrentStats.OutputFilePath;
         string? ffmpegPath = _pipelineService.FindFFmpegExecutable();
@@ -612,6 +620,8 @@ public class RecordingEngine : IRecordingEngine
 
     private void OnAudioLevelTick()
     {
+        if (_audioMonitor == null) return;
+
         // Real-time audio VU meter readings directly from Windows sound hardware with Gain & Gate applied
         var (sysLevel, micLevel) = _audioMonitor.GetCurrentLevels(
             _monitorSpeaker,
@@ -631,8 +641,8 @@ public class RecordingEngine : IRecordingEngine
     {
         try { _levelTimer.Stop(); } catch { }
         try { _levelTimer.Dispose(); } catch { }
-        try { _audioMonitor.Dispose(); } catch { }
-        try { _audioRecorder.Dispose(); } catch { }
+        try { _audioMonitor?.Dispose(); } catch { }
+        try { _audioRecorder?.Dispose(); } catch { }
 
         if (_ffmpegProcess != null && !_ffmpegProcess.HasExited)
         {

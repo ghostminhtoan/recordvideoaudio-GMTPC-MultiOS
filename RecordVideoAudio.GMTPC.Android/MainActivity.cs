@@ -1,3 +1,4 @@
+using System;
 using Android.App;
 using Android.Content;
 using Android.Content.PM;
@@ -18,7 +19,16 @@ public class MainActivity : AvaloniaMainActivity
 {
     protected override void OnCreate(Bundle? savedInstanceState)
     {
-        base.OnCreate(savedInstanceState);
+        CrashHandler.Initialize(this);
+        try
+        {
+            base.OnCreate(savedInstanceState);
+        }
+        catch (Exception ex)
+        {
+            CrashHandler.ReportCrash(ex);
+            return;
+        }
 
         AutoUpdateService.AndroidInstallHandler = (apkPath) =>
         {
