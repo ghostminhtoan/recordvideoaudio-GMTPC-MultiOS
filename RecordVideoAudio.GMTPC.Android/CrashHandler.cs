@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
@@ -21,13 +21,8 @@ public static class CrashHandler
         _initialized = true;
         _appContext = context.ApplicationContext ?? context;
 
-        // 1. Mono/Android environment unhandled exceptions
         AndroidEnvironment.UnhandledExceptionRaiser += OnAndroidUnhandledException;
-
-        // 2. .NET AppDomain unhandled exceptions
         AppDomain.CurrentDomain.UnhandledException += OnAppDomainUnhandledException;
-
-        // 3. Task scheduler unobserved exceptions
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
     }
 
@@ -57,18 +52,18 @@ public static class CrashHandler
         try
         {
             var sb = new StringBuilder();
-            sb.AppendLine("=== GMTPC RECORD VIDEO AUDIO - THÔNG TIN SỰ CỐ ===");
-            sb.AppendLine($"Thời gian: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-            sb.AppendLine($"Loại lỗi (Exception Type): {ex.GetType().FullName}");
-            sb.AppendLine($"Thông điệp (Message): {ex.Message}");
+            sb.AppendLine("=== GMTPC RECORD VIDEO AUDIO - THONG TIN SU CO ===");
+            sb.AppendLine($"Thoi gian: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            sb.AppendLine($"Loai loi: {ex.GetType().FullName}");
+            sb.AppendLine($"Thong diep: {ex.Message}");
             sb.AppendLine();
-            sb.AppendLine("--- THIẾT BỊ & NỀN TẢNG ---");
-            sb.AppendLine($"Hãng: {Build.Manufacturer}");
+            sb.AppendLine("--- THIET BI & NEN TANG ---");
+            sb.AppendLine($"Hang: {Build.Manufacturer}");
             sb.AppendLine($"Model: {Build.Model}");
-            sb.AppendLine($"Phiên bản Android: {Build.VERSION.Release} (API {Build.VERSION.SdkInt})");
-            sb.AppendLine($"Cấu trúc CPU (ABI): {string.Join(", ", Build.SupportedAbis ?? Array.Empty<string>())}");
+            sb.AppendLine($"Android: {Build.VERSION.Release} (API {Build.VERSION.SdkInt})");
+            sb.AppendLine($"CPU ABI: {string.Join(", ", Build.SupportedAbis ?? Array.Empty<string>())}");
             sb.AppendLine();
-            sb.AppendLine("--- CHI TIẾT NGUYÊN NHÂN (STACK TRACE) ---");
+            sb.AppendLine("--- CHI TIET NGUYEN NHAN (STACK TRACE) ---");
             sb.AppendLine(ex.ToString());
 
             if (ex.InnerException != null)
@@ -80,7 +75,6 @@ public static class CrashHandler
 
             string fullError = sb.ToString();
 
-            // Lưu log ra file trong bộ nhớ nội bộ của ứng dụng
             if (_appContext != null)
             {
                 try
@@ -95,7 +89,6 @@ public static class CrashHandler
                 catch { }
             }
 
-            // Khởi chạy CrashReportActivity
             if (_appContext != null)
             {
                 var intent = new Intent(_appContext, typeof(CrashReportActivity));
@@ -106,7 +99,7 @@ public static class CrashHandler
         }
         catch (Exception reportEx)
         {
-            Log.Error("GMTPC_CRASH", $"Lỗi khi hiển thị CrashReport: {reportEx}");
+            Log.Error("GMTPC_CRASH", $"Loi khi hien thi CrashReport: {reportEx}");
         }
     }
 }

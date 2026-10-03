@@ -20,6 +20,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\RecordVideoAudio.GMTPC\RecordVideoAudio.GMTPC.csproj" />
+    <ProjectReference Include="..\RecordVideoAudio.GMTPC\RecordVideoAudio.GMTPC.csproj" SetTargetFramework="TargetFramework=net10.0" />
   </ItemGroup>
 </Project>

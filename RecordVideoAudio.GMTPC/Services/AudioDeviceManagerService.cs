@@ -1,3 +1,4 @@
+#if !ANDROID
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
@@ -330,3 +331,51 @@ public class AudioDeviceManagerService : IDisposable
         catch { }
     }
 }
+#else
+using System;
+using System.Collections.Generic;
+using RecordVideoAudio.GMTPC.Models;
+
+namespace RecordVideoAudio.GMTPC.Services;
+
+public class AudioDeviceManagerService : IDisposable
+{
+    public event Action<List<AudioDeviceInfo>, List<AudioDeviceInfo>>? DevicesRefreshed;
+#pragma warning disable CS0067
+    public event Action<string>? DeviceHotplugTraceLogged;
+#pragma warning restore CS0067
+
+    public (List<AudioDeviceInfo> speakers, List<AudioDeviceInfo> microphones) GetDevices()
+    {
+        var speakers = new List<AudioDeviceInfo>
+        {
+            new AudioDeviceInfo
+            {
+                Id = "default",
+                Name = "🔊 [Mặc định] Thiết bị phát hệ thống",
+                IsDefault = true,
+                Flow = AudioDeviceFlow.Render
+            }
+        };
+        var mics = new List<AudioDeviceInfo>
+        {
+            new AudioDeviceInfo
+            {
+                Id = "default",
+                Name = "🎙️ [Mặc định] Micro hệ thống",
+                IsDefault = true,
+                Flow = AudioDeviceFlow.Capture
+            }
+        };
+        return (speakers, mics);
+    }
+
+    public void RefreshDevices()
+    {
+        var (speakers, mics) = GetDevices();
+        DevicesRefreshed?.Invoke(speakers, mics);
+    }
+
+    public void Dispose() { }
+}
+#endif

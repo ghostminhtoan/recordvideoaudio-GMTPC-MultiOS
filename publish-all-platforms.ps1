@@ -71,17 +71,27 @@ if (Test-Path "$linuxDir\RecordVideoAudio.GMTPC.Desktop") {
 
 # 3. Thu thập gói Android APK
 Write-Host "`n[3/3] Đóng gói và thu thập gói cài đặt Android (.apk)..." -ForegroundColor Green
+dotnet restore "$rootDir\RecordVideoAudio.GMTPC\RecordVideoAudio.GMTPC.csproj"
+dotnet restore "$rootDir\RecordVideoAudio.GMTPC.Android\RecordVideoAudio.GMTPC.Android.csproj"
 dotnet publish "$rootDir\RecordVideoAudio.GMTPC.Android\RecordVideoAudio.GMTPC.Android.csproj" -c Release
 
 if (-not (Test-Path $androidDir)) {
     New-Item -ItemType Directory -Path $androidDir -Force | Out-Null
 }
-$apkSources = Get-ChildItem -Path "$rootDir\RecordVideoAudio.GMTPC.Android\bin\" -Recurse -Filter "*.apk" | Sort-Object LastWriteTime -Descending
-if ($apkSources.Count -gt 0) {
-    $latestApk = $apkSources[0]
-    Copy-Item $latestApk.FullName "$androidDir\RecordVideoAudio.GMTPC.apk" -Force
-    Copy-Item $latestApk.FullName "$distDir\RecordVideoAudio.GMTPC.apk" -Force
-    Write-Host "  -> Đã sao chép APK: $($latestApk.Name)" -ForegroundColor Gray
+$signedApks = Get-ChildItem -Path "$rootDir\RecordVideoAudio.GMTPC.Android\bin\" -Recurse -Filter "*Signed.apk" | Sort-Object LastWriteTime -Descending
+$targetApk = $null
+if ($signedApks.Count -gt 0) {
+    $targetApk = $signedApks[0]
+} else {
+    $apkSources = Get-ChildItem -Path "$rootDir\RecordVideoAudio.GMTPC.Android\bin\" -Recurse -Filter "*.apk" | Sort-Object LastWriteTime -Descending
+    if ($apkSources.Count -gt 0) {
+        $targetApk = $apkSources[0]
+    }
+}
+if ($targetApk) {
+    Copy-Item $targetApk.FullName "$androidDir\RecordVideoAudio.GMTPC.apk" -Force
+    Copy-Item $targetApk.FullName "$distDir\RecordVideoAudio.GMTPC.apk" -Force
+    Write-Host "  -> Đã sao chép APK (Signed): $($targetApk.Name)" -ForegroundColor Gray
 }
 
 # Xóa triệt để các file dll / pdb rác nếu vô tình sinh ra tại gốc dist và thư mục con

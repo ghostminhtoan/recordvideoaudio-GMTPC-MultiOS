@@ -13,7 +13,6 @@
     <RunAOTCompilation>false</RunAOTCompilation>
   </PropertyGroup>
 
-
   <ItemGroup>
     <PackageReference Include="Avalonia.Android" />
     <PackageReference Include="Xamarin.AndroidX.Core.SplashScreen" />
@@ -23,3 +22,4 @@
     <ProjectReference Include="..\RecordVideoAudio.GMTPC\RecordVideoAudio.GMTPC.csproj" />
   </ItemGroup>
 </Project>
+

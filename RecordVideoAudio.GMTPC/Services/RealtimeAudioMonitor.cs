@@ -1,3 +1,4 @@
+#if !ANDROID
 using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -219,3 +220,19 @@ public class RealtimeAudioMonitor : IDisposable
         try { (enumerator as IDisposable)?.Dispose(); } catch { }
     }
 }
+#else
+using System;
+
+namespace RecordVideoAudio.GMTPC.Services;
+
+public class RealtimeAudioMonitor : IDisposable
+{
+    public void UpdateSelectedDevices(string? speakerDeviceId, string? micDeviceId) { }
+    public (double speakerLevel, double micLevel) GetCurrentLevels(bool speakerEnabled, double speakerVolume, bool micEnabled, double micVolume) => (0, 0);
+    public (double speakerLevel, double micLevel) GetCurrentLevels(
+        bool speakerEnabled, double speakerVolume, double speakerGainDb,
+        bool micEnabled, double micVolume, double micGainDb,
+        bool micNoiseGate = false, double micNoiseGateThresholdDb = -36.0) => (0, 0);
+    public void Dispose() { }
+}
+#endif
