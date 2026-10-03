@@ -30,19 +30,25 @@ public class AudioDeviceManagerService : IDisposable
 
         try
         {
-            _enumerator = new MMDeviceEnumerator();
-            // Use nonblocking audio thread callbacks, we marshal and debounce ourselves
-            _notificationClient = _enumerator.CreateNotificationClient(useSynchronizationContext: false);
-
-            _notificationClient.DeviceAdded += OnDeviceAdded;
-            _notificationClient.DeviceRemoved += OnDeviceRemoved;
-            _notificationClient.DeviceStateChanged += OnDeviceStateChanged;
-            _notificationClient.DefaultDeviceChanged += OnDefaultDeviceChanged;
+            InitHotplugWindows();
         }
         catch (Exception ex)
         {
             DeviceHotplugTraceLogged?.Invoke($"[Lỗi khởi tạo Hotplug Audio] {ex.Message}");
         }
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private void InitHotplugWindows()
+    {
+        _enumerator = new MMDeviceEnumerator();
+        // Use nonblocking audio thread callbacks, we marshal and debounce ourselves
+        _notificationClient = _enumerator.CreateNotificationClient(useSynchronizationContext: false);
+
+        _notificationClient.DeviceAdded += OnDeviceAdded;
+        _notificationClient.DeviceRemoved += OnDeviceRemoved;
+        _notificationClient.DeviceStateChanged += OnDeviceStateChanged;
+        _notificationClient.DefaultDeviceChanged += OnDefaultDeviceChanged;
     }
 
     private void OnDeviceAdded(object? sender, DeviceNotificationEventArgs e)
@@ -130,91 +136,7 @@ public class AudioDeviceManagerService : IDisposable
 
         try
         {
-            using var enumerator = new MMDeviceEnumerator();
-
-            // 1. Get default render endpoint
-            string defaultRenderId = string.Empty;
-            string defaultRenderName = "Hệ thống";
-            try
-            {
-                var defRender = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-                if (defRender != null)
-                {
-                    defaultRenderId = defRender.ID;
-                    defaultRenderName = defRender.FriendlyName;
-                }
-            }
-            catch { }
-
-            speakers.Add(new AudioDeviceInfo
-            {
-                Id = "default",
-                Name = $"🔊 [Mặc định] {defaultRenderName}",
-                IsDefault = true,
-                Flow = AudioDeviceFlow.Render
-            });
-
-            try
-            {
-                var renderEndpoints = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
-                foreach (var device in renderEndpoints)
-                {
-                    try
-                    {
-                        speakers.Add(new AudioDeviceInfo
-                        {
-                            Id = device.ID,
-                            Name = device.FriendlyName,
-                            IsDefault = string.Equals(device.ID, defaultRenderId, StringComparison.OrdinalIgnoreCase),
-                            Flow = AudioDeviceFlow.Render
-                        });
-                    }
-                    catch { }
-                }
-            }
-            catch { }
-
-            // 2. Get default capture endpoint
-            string defaultCaptureId = string.Empty;
-            string defaultCaptureName = "Hệ thống";
-            try
-            {
-                var defCapture = enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia);
-                if (defCapture != null)
-                {
-                    defaultCaptureId = defCapture.ID;
-                    defaultCaptureName = defCapture.FriendlyName;
-                }
-            }
-            catch { }
-
-            mics.Add(new AudioDeviceInfo
-            {
-                Id = "default",
-                Name = $"🎙️ [Mặc định] {defaultCaptureName}",
-                IsDefault = true,
-                Flow = AudioDeviceFlow.Capture
-            });
-
-            try
-            {
-                var captureEndpoints = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
-                foreach (var device in captureEndpoints)
-                {
-                    try
-                    {
-                        mics.Add(new AudioDeviceInfo
-                        {
-                            Id = device.ID,
-                            Name = device.FriendlyName,
-                            IsDefault = string.Equals(device.ID, defaultCaptureId, StringComparison.OrdinalIgnoreCase),
-                            Flow = AudioDeviceFlow.Capture
-                        });
-                    }
-                    catch { }
-                }
-            }
-            catch { }
+            GetWindowsDevices(speakers, mics);
         }
         catch (Exception ex)
         {
@@ -222,6 +144,96 @@ public class AudioDeviceManagerService : IDisposable
         }
 
         return (speakers, mics);
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private void GetWindowsDevices(List<AudioDeviceInfo> speakers, List<AudioDeviceInfo> mics)
+    {
+        using var enumerator = new MMDeviceEnumerator();
+
+        // 1. Get default render endpoint
+        string defaultRenderId = string.Empty;
+        string defaultRenderName = "Hệ thống";
+        try
+        {
+            var defRender = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            if (defRender != null)
+            {
+                defaultRenderId = defRender.ID;
+                defaultRenderName = defRender.FriendlyName;
+            }
+        }
+        catch { }
+
+        speakers.Add(new AudioDeviceInfo
+        {
+            Id = "default",
+            Name = $"🔊 [Mặc định] {defaultRenderName}",
+            IsDefault = true,
+            Flow = AudioDeviceFlow.Render
+        });
+
+        try
+        {
+            var renderEndpoints = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+            foreach (var device in renderEndpoints)
+            {
+                try
+                {
+                    speakers.Add(new AudioDeviceInfo
+                    {
+                        Id = device.ID,
+                        Name = device.FriendlyName,
+                        IsDefault = string.Equals(device.ID, defaultRenderId, StringComparison.OrdinalIgnoreCase),
+                        Flow = AudioDeviceFlow.Render
+                    });
+                }
+                catch { }
+            }
+        }
+        catch { }
+
+        // 2. Get default capture endpoint
+        string defaultCaptureId = string.Empty;
+        string defaultCaptureName = "Hệ thống";
+        try
+        {
+            var defCapture = enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia);
+            if (defCapture != null)
+            {
+                defaultCaptureId = defCapture.ID;
+                defaultCaptureName = defCapture.FriendlyName;
+            }
+        }
+        catch { }
+
+        mics.Add(new AudioDeviceInfo
+        {
+            Id = "default",
+            Name = $"🎙️ [Mặc định] {defaultCaptureName}",
+            IsDefault = true,
+            Flow = AudioDeviceFlow.Capture
+        });
+
+        try
+        {
+            var captureEndpoints = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
+            foreach (var device in captureEndpoints)
+            {
+                try
+                {
+                    mics.Add(new AudioDeviceInfo
+                    {
+                        Id = device.ID,
+                        Name = device.FriendlyName,
+                        IsDefault = string.Equals(device.ID, defaultCaptureId, StringComparison.OrdinalIgnoreCase),
+                        Flow = AudioDeviceFlow.Capture
+                    });
+                }
+                catch { }
+            }
+        }
+        catch { }
     }
 
     public void RefreshDevices()
@@ -238,16 +250,23 @@ public class AudioDeviceManagerService : IDisposable
 
         try
         {
-            using var enumerator = new MMDeviceEnumerator();
-            var dev = enumerator.GetDevice(deviceId);
-            if (dev != null)
-            {
-                flow = dev.DataFlow;
-                return dev.FriendlyName;
-            }
+            return GetWindowsFriendlyName(deviceId, ref flow);
         }
         catch { }
 
+        return GetShortDeviceId(deviceId);
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private string GetWindowsFriendlyName(string deviceId, ref DataFlow flow)
+    {
+        using var enumerator = new MMDeviceEnumerator();
+        var dev = enumerator.GetDevice(deviceId);
+        if (dev != null)
+        {
+            flow = dev.DataFlow;
+            return dev.FriendlyName;
+        }
         return GetShortDeviceId(deviceId);
     }
 

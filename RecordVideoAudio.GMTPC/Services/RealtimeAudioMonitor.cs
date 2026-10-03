@@ -104,6 +104,22 @@ public class RealtimeAudioMonitor : IDisposable
         if (!_initialized || !RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             return (0, 0);
 
+        try
+        {
+            return GetWindowsLevels(speakerEnabled, speakerVolume, speakerGainDb, micEnabled, micVolume, micGainDb, micNoiseGate, micNoiseGateThresholdDb);
+        }
+        catch
+        {
+            return (0, 0);
+        }
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private (double speakerLevel, double micLevel) GetWindowsLevels(
+        bool speakerEnabled, double speakerVolume, double speakerGainDb,
+        bool micEnabled, double micVolume, double micGainDb,
+        bool micNoiseGate, double micNoiseGateThresholdDb)
+    {
         double speaker = 0;
         double mic = 0;
 
@@ -128,10 +144,7 @@ public class RealtimeAudioMonitor : IDisposable
                     speaker = Math.Min(100.0, Math.Max(0.0, peak * 100.0 * (speakerVolume / 100.0) * gainMultiplier));
                 }
             }
-            catch
-            {
-                // Silently fallback without reinitializing in tight polling loop
-            }
+            catch { }
         }
 
         if (micEnabled && currentMic != null)
@@ -154,16 +167,26 @@ public class RealtimeAudioMonitor : IDisposable
                     }
                 }
             }
-            catch
-            {
-                // Silently fallback without reinitializing in tight polling loop
-            }
+            catch { }
         }
 
         return (speaker, mic);
     }
 
     public void Dispose()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            return;
+
+        try
+        {
+            DisposeWindows();
+        }
+        catch { }
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private void DisposeWindows()
     {
         MMDevice? spk;
         MMDevice? mic;

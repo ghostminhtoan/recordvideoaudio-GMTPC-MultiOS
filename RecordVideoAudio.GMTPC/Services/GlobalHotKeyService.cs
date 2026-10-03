@@ -146,6 +146,9 @@ public class GlobalHotKeyService : IDisposable
 
     public void Dispose()
     {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            return;
+
         if (_hookId != IntPtr.Zero)
         {
             try
