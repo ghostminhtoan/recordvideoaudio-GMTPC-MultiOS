@@ -762,13 +762,13 @@
             </Grid>
         </Border>
 
-        <!-- ================= VOCAL STUDIO FX MODAL OVERLAY (ĐẦY ĐỦ 100% TÍNH NĂNG CHO ANDROID & SINGLE-VIEW) ================= -->
+        <!-- ================= VOCAL STUDIO FX MODAL OVERLAY (ĐẦY ĐỦ 100% TÍNH NĂNG CHO DESKTOP & SINGLE-VIEW) ================= -->
         <Grid Grid.Row="0" Grid.RowSpan="3" IsVisible="{Binding IsVocalStudioModalOpen}"
               Background="#080C16" ZIndex="1000">
             <views:VocalStudioControl />
         </Grid>
 
-        <!-- ================= AUTO UPDATE MODAL OVERLAY (WINDOWS & ANDROID & LINUX) ================= -->
+        <!-- ================= AUTO UPDATE MODAL OVERLAY (WINDOWS & LINUX) ================= -->
         <Grid Grid.Row="0" Grid.RowSpan="3" IsVisible="{Binding IsUpdateModalOpen}"
               Background="#D9000000" ZIndex="1100">
             <views:AutoUpdateControl />

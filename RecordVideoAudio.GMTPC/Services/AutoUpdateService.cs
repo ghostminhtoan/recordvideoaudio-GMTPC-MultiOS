@@ -26,20 +26,14 @@ public class AutoUpdateService
     public static AutoUpdateService Instance { get; } = new();
 
     public const string WindowsDownloadUrl = "https://github.com/ghostminhtoan/recordvideoaudio-GMTPC-MultiOS/releases/download/release/RecordVideoAudio.GMTPC.exe";
-    public const string AndroidDownloadUrl = "https://github.com/ghostminhtoan/recordvideoaudio-GMTPC-MultiOS/releases/download/release/RecordVideoAudio.GMTPC.apk";
     public const string GitHubReleaseApiUrl = "https://api.github.com/repos/ghostminhtoan/recordvideoaudio-GMTPC-MultiOS/releases/tags/release";
     public const string GitHubReleaseWebUrl = "https://github.com/ghostminhtoan/recordvideoaudio-GMTPC-MultiOS/releases/tag/release";
-
-    // Hooks for Android Native Implementation
-    public static Action<string>? AndroidInstallHandler { get; set; }
-    public static Action<string>? AndroidBrowserHandler { get; set; }
 
     public string CurrentPlatformName
     {
         get
         {
             if (OperatingSystem.IsWindows()) return "Windows (x64)";
-            if (OperatingSystem.IsAndroid()) return "Android (.apk)";
             if (OperatingSystem.IsLinux()) return "Linux (x64)";
             return RuntimeInformation.OSDescription;
         }
@@ -49,7 +43,6 @@ public class AutoUpdateService
     {
         get
         {
-            if (OperatingSystem.IsAndroid()) return AndroidDownloadUrl;
             if (OperatingSystem.IsWindows()) return WindowsDownloadUrl;
             return GitHubReleaseWebUrl;
         }
@@ -59,7 +52,6 @@ public class AutoUpdateService
     {
         get
         {
-            if (OperatingSystem.IsAndroid()) return "RecordVideoAudio.GMTPC.apk";
             if (OperatingSystem.IsWindows()) return "RecordVideoAudio.GMTPC.exe";
             return "RecordVideoAudio.GMTPC";
         }
@@ -106,7 +98,7 @@ public class AutoUpdateService
 
                             if (OperatingSystem.IsWindows() && assetName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
                                 match = true;
-                            else if (OperatingSystem.IsAndroid() && assetName.EndsWith(".apk", StringComparison.OrdinalIgnoreCase))
+                            else if (OperatingSystem.IsLinux() && (assetName.EndsWith("-linux", StringComparison.OrdinalIgnoreCase) || assetName.Equals("RecordVideoAudio.GMTPC", StringComparison.OrdinalIgnoreCase)))
                                 match = true;
 
                             if (match)
@@ -273,18 +265,7 @@ public class AutoUpdateService
         {
             ApplyWindowsUpdateAndRestart(downloadedFilePath);
         }
-        else if (OperatingSystem.IsAndroid())
-        {
-            if (AndroidInstallHandler != null)
-            {
-                AndroidInstallHandler(downloadedFilePath);
-            }
-            else
-            {
-                OpenUrl(AndroidDownloadUrl);
-            }
-        }
-        else if (OperatingSystem.IsLinux())
+        else
         {
             OpenUrl(GitHubReleaseWebUrl);
         }
@@ -337,13 +318,9 @@ exit
             {
                 Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
             }
-            else if (OperatingSystem.IsLinux())
+            else
             {
                 Process.Start(new ProcessStartInfo("xdg-open", url) { UseShellExecute = true });
-            }
-            else if (OperatingSystem.IsAndroid())
-            {
-                AndroidBrowserHandler?.Invoke(url);
             }
         }
         catch { }

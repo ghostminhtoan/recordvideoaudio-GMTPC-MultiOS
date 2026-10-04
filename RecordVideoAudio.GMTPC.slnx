@@ -1,7 +1,4 @@
 <Solution>
-  <Project Path="RecordVideoAudio.GMTPC.Android/RecordVideoAudio.GMTPC.Android.csproj">
-    <Deploy />
-  </Project>
   <Project Path="RecordVideoAudio.GMTPC.Desktop/RecordVideoAudio.GMTPC.Desktop.csproj" />
   <Project Path="RecordVideoAudio.GMTPC/RecordVideoAudio.GMTPC.csproj" />
 </Solution>

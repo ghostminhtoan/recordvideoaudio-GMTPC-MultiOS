@@ -19,7 +19,7 @@
                         </Border>
                         <StackPanel Spacing="2">
                             <TextBlock Text="GMTPC AUTO-UPDATE SYSTEM" FontWeight="Bold" FontSize="14" Foreground="#00F0FF" />
-                            <TextBlock Text="Hệ thống cập nhật tự động đa nền tảng (Windows .exe &amp; Android .apk)" FontSize="10" Foreground="#8892B0" />
+                            <TextBlock Text="Hệ thống cập nhật tự động đa nền tảng (Windows &amp; Linux)" FontSize="10" Foreground="#8892B0" />
                         </StackPanel>
                     </StackPanel>
 

@@ -6,12 +6,12 @@ title GMTPC - Build & Package Multi-OS Record Video Audio
 
 echo ==========================================================
 echo    GMTPC MULTIOS BUILD SYSTEM - RECORD VIDEO AUDIO
-echo    Avalonia UI (.NET 10) - Windows / Linux / Android
+echo    Avalonia UI (.NET 10) - Windows / Linux
 echo ==========================================================
 echo.
-echo [1] Đóng gói TOÀN BỘ nền tảng vào thư mục dist\ (Mặc định)
+echo [1] Đóng gói TOÀN BỘ nền tảng vào thư mục dist\ (Windows & Linux) (Mặc định)
 echo [2] Chỉ đóng gói Windows Single-File (.exe)
-echo [3] Chỉ đóng gói Android (.apk)
+echo [3] Chỉ đóng gói Linux Single-File (standalone binary)
 echo [4] Biên dịch kiểm tra lỗi toàn bộ Solution (dotnet build)
 echo [5] Chạy ứng dụng ngay trên Windows (Run App)
 echo [0] Thoát
@@ -47,18 +47,16 @@ if "%CHOICE%"=="2" (
 
 if "%CHOICE%"=="3" (
     echo.
-    echo [*] Đang đóng gói Android APK...
-    set "DIST_APK=%~dp0dist\android"
+    echo [*] Đang đóng gói Linux x64 (Single-File Self-Contained)...
+    set "DIST_LINUX=%~dp0dist\linux"
     if not exist "%~dp0dist" mkdir "%~dp0dist"
-    if not exist "!DIST_APK!" mkdir "!DIST_APK!"
+    if not exist "!DIST_LINUX!" mkdir "!DIST_LINUX!"
     
-    dotnet publish "%~dp0RecordVideoAudio.GMTPC.Android\RecordVideoAudio.GMTPC.Android.csproj" -c Release
-    for /r "%~dp0RecordVideoAudio.GMTPC.Android\bin\" %%F in (*.apk) do (
-        copy /y "%%F" "!DIST_APK!\RecordVideoAudio.GMTPC.apk" > nul
-        copy /y "%%F" "%~dp0dist\RecordVideoAudio.GMTPC.apk" > nul
+    dotnet publish "%~dp0RecordVideoAudio.GMTPC.Desktop\RecordVideoAudio.GMTPC.Desktop.csproj" -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -o "!DIST_LINUX!"
+    if exist "!DIST_LINUX!\RecordVideoAudio.GMTPC.Desktop" (
+        copy /y "!DIST_LINUX!\RecordVideoAudio.GMTPC.Desktop" "%~dp0dist\RecordVideoAudio.GMTPC-linux" > nul
         echo.
-        echo [OK] Đã xuất bản: %~dp0dist\RecordVideoAudio.GMTPC.apk
-        goto :done
+        echo [OK] Đã xuất bản: %~dp0dist\RecordVideoAudio.GMTPC-linux
     )
     goto :done
 )

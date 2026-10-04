@@ -1,4 +1,3 @@
-#if !ANDROID
 using System;
 using System.Collections.Concurrent;
 using System.IO;
@@ -1821,51 +1820,5 @@ public class WasapiAudioRecorder : IDisposable
         }
     }
 }
-#else
-using System;
-using RecordVideoAudio.GMTPC.Models;
 
-namespace RecordVideoAudio.GMTPC.Services;
-
-public class WasapiAudioRecorder : IDisposable
-{
-    public bool IsMonitoring => false;
-    public float MonitoringVolume => 1.0f;
-    public bool IsRecording => false;
-
-    public void SetSelectedDevices(string? speakerDeviceId, string? micDeviceId) { }
-    public void SetMonitoring(bool enabled, float volume) { }
-    public void UpdateRealtimeSettings(
-        bool speakerEnabled, double speakerVolume, double speakerGainDb,
-        bool micEnabled, double micVolume, double micGainDb,
-        bool micNoiseSuppression, bool micNoiseGate, double micNoiseGateThresholdDb,
-        bool micHighPassFilter,
-        bool micCompressor, double micCompressorThresholdDb, double micCompressorRatio,
-        VocalProfile micVocalProfile, bool micDeEsser,
-        bool micAutoTune, MusicalKey micAutoTuneKey, AutoTuneScale micAutoTuneScale,
-        int micAutoTuneSpeed, int micPitchShiftSemitones,
-        bool micEcho, int micEchoDelayMs, double micEchoFeedback, double micEchoWetMix,
-        bool micReverb, double micReverbRoomSize, double micReverbDamping, double micReverbWetMix,
-        bool speakerAutoDucking) { }
-
-    public string? StartRecording(
-        bool recordSpeaker, float speakerVolume, double speakerGainDb,
-        bool recordMic, float micVolume, double micGainDb,
-        bool micNoiseSuppression, bool micNoiseGate, double micNoiseGateThresholdDb,
-        bool micHighPassFilter,
-        bool micCompressor, double micCompressorThresholdDb, double micCompressorRatio,
-        VocalProfile micVocalProfile, bool micDeEsser,
-        bool micAutoTune, MusicalKey micAutoTuneKey, AutoTuneScale micAutoTuneScale,
-        int micAutoTuneSpeed, int micPitchShiftSemitones,
-        string outDir,
-        bool micEcho = false, int micEchoDelayMs = 220, double micEchoFeedback = 35.0, double micEchoWetMix = 30.0,
-        bool micReverb = false, double micReverbRoomSize = 50.0, double micReverbDamping = 40.0, double micReverbWetMix = 25.0,
-        bool speakerAutoDucking = false,
-        string? speakerDeviceId = null, string? micDeviceId = null) => null;
-
-    public (string? speakerWav, string? micWav) StopRecording() => (null, null);
-
-    public void Dispose() { }
-}
-#endif
 

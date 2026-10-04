@@ -53,7 +53,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             PlatformBadge = "LINUX (PIPEWIRE/X11)";
         else
-            PlatformBadge = "ANDROID";
+            PlatformBadge = "DESKTOP";
 
         // Initialize lists
         FormatList = new ObservableCollection<ContainerFormat> { ContainerFormat.MP4, ContainerFormat.MKV };
@@ -62,7 +62,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         RateControlList = new ObservableCollection<RateControlMode> { RateControlMode.CRF, RateControlMode.CQP, RateControlMode.CBR, RateControlMode.VBR };
         FpsList = new ObservableCollection<int> { 24, 30, 60, 120 };
         PresetList = new ObservableCollection<PresetSpeed> { PresetSpeed.Ultrafast, PresetSpeed.Veryfast, PresetSpeed.Fast, PresetSpeed.Medium, PresetSpeed.Slow };
-        HwAccelList = new ObservableCollection<HwAccelType> { HwAccelType.Auto, HwAccelType.NVENC, HwAccelType.QSV, HwAccelType.AMF, HwAccelType.VAAPI, HwAccelType.MediaCodec, HwAccelType.SoftwareCPU };
+        HwAccelList = new ObservableCollection<HwAccelType> { HwAccelType.Auto, HwAccelType.NVENC, HwAccelType.QSV, HwAccelType.AMF, HwAccelType.VAAPI, HwAccelType.SoftwareCPU };
         CaptureSourceList = new ObservableCollection<CaptureSourceType> { CaptureSourceType.FullScreen, CaptureSourceType.CustomArea, CaptureSourceType.ActiveWindow, CaptureSourceType.CameraPiP };
         PipPositionList = new ObservableCollection<PipPosition> { PipPosition.BottomRight, PipPosition.BottomLeft, PipPosition.TopRight, PipPosition.TopLeft };
         PipSizeList = new ObservableCollection<PipSize> { PipSize.Small, PipSize.Medium, PipSize.Large };
@@ -78,7 +78,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             SelectedProfile = Profiles[0];
         }
 
-        // Default folder (Bảo vệ an toàn cho cả Windows, Linux và Android)
+        // Default folder (Bảo vệ an toàn cho cả Windows và Linux)
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             OutputDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Recordings");
@@ -972,7 +972,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             }
         }
 
-        // Trên Android / Mobile hoặc Desktop Fallback: Mở Modal trực tiếp trên màn hình chính
+        // Single-view / Desktop Fallback: Mở Modal trực tiếp trên màn hình chính
         IsVocalStudioModalOpen = true;
     }
 
@@ -1118,7 +1118,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             UpdateStatusColor = "#FFB800";
             UpdateActionButtonText = OperatingSystem.IsWindows()
                 ? "🚀 TẢI VÀ TỰ ĐỘNG CẬP NHẬT"
-                : (OperatingSystem.IsAndroid() ? "📲 TẢI & CÀI ĐẶT APK" : "TẢI BẢN MỚI");
+                : "TẢI BẢN MỚI";
         }
         else
         {
@@ -1133,7 +1133,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             }
             UpdateActionButtonText = OperatingSystem.IsWindows()
                 ? "🚀 TẢI LẠI BẢN MỚI NHẤT"
-                : (OperatingSystem.IsAndroid() ? "📲 TẢI LẠI APK MỚI NHẤT" : "TẢI BẢN MỚI");
+                : "TẢI BẢN MỚI";
         }
     }
 

@@ -42,8 +42,8 @@ public class LocalizationService
         },
         ["Subtitle"] = new()
         {
-            [LanguageMode.Vietnamese] = "Quay phim & Thu âm đa nền tảng (Windows, Linux, Android) • Avalonia UI",
-            [LanguageMode.English] = "Multi-OS Screen & Audio Recorder (Windows, Linux, Android) • Avalonia UI"
+            [LanguageMode.Vietnamese] = "Quay phim & Thu âm đa nền tảng (Windows, Linux) • Avalonia UI",
+            [LanguageMode.English] = "Multi-OS Screen & Audio Recorder (Windows, Linux) • Avalonia UI"
         },
         ["ContainerFormat"] = new()
         {

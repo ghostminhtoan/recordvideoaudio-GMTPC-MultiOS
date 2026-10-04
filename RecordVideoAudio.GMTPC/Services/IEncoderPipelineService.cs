@@ -239,13 +239,9 @@ public class FFmpegPipelineService : IEncoderPipelineService
                     break;
             }
         }
-        else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-        {
-            sb.Append($"-f x11grab -framerate {config.Fps} -draw_mouse {dm} -i :0.0 -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\" ");
-        }
         else
         {
-            sb.Append($"-f android_camera -framerate {config.Fps} -i 0 ");
+            sb.Append($"-f x11grab -framerate {config.Fps} -draw_mouse {dm} -i :0.0 -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\" ");
         }
 
         // 2. Video Codec
@@ -258,7 +254,6 @@ public class FFmpegPipelineService : IEncoderPipelineService
                 HwAccelType.QSV => "hevc_qsv",
                 HwAccelType.AMF => "hevc_amf",
                 HwAccelType.VAAPI => "hevc_vaapi",
-                HwAccelType.MediaCodec => "hevc_mediacodec",
                 HwAccelType.SoftwareCPU => RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "hevc_mf" : "libx265",
                 _ => RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? (IsNvencSupported() ? "hevc_nvenc" : "hevc_mf") : "libx265"
             };
@@ -271,7 +266,6 @@ public class FFmpegPipelineService : IEncoderPipelineService
                 HwAccelType.QSV => "h264_qsv",
                 HwAccelType.AMF => "h264_amf",
                 HwAccelType.VAAPI => "h264_vaapi",
-                HwAccelType.MediaCodec => "h264_mediacodec",
                 HwAccelType.SoftwareCPU => RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "h264_mf" : "libx264",
                 _ => RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? (IsNvencSupported() ? "h264_nvenc" : "h264_mf") : "libx264"
             };

@@ -5,10 +5,8 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-#if !ANDROID
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
-#endif
 
 namespace RecordVideoAudio.GMTPC.Services;
 
@@ -18,7 +16,6 @@ public enum LatencyMeasurementTarget
     WirelessHeadphone    // Tai nghe không dây & Micro (Onset Vocal-Rhythm Correlation, 0-1000ms)
 }
 
-#if !ANDROID
 public class AudioLatencyDetectorService : IDisposable
 {
     private readonly object _lock = new();
@@ -1020,28 +1017,3 @@ public class AudioLatencyDetectorService : IDisposable
         }
     }
 }
-#else
-public class AudioLatencyDetectorService : IDisposable
-{
-    public bool IsDetecting => false;
-    public bool IsHoldingCapture => false;
-    public LatencyMeasurementTarget CurrentTarget => LatencyMeasurementTarget.SpeakerAndMic;
-    public bool IsPlayMetronome => false;
-    public string StatusMessage { get; set; } = "Tính năng này chỉ hỗ trợ trên Windows.";
-    public int DetectedDelayMs => 0;
-    public double ConfidencePercent => 0.0;
-
-    public (string renderName, string captureName) GetActiveDeviceNames(string? speakerDeviceId, string? micDeviceId)
-        => ("Mặc định hệ thống", "Mặc định hệ thống");
-
-    public Task<int?> CalibrateWithPulseAsync(string? speakerDeviceId, string? micDeviceId)
-        => Task.FromResult<int?>(null);
-
-    public bool StartLiveHoldCapture(LatencyMeasurementTarget target, bool playMetronome, string? speakerDeviceId, string? micDeviceId)
-        => false;
-
-    public int? StopLiveHoldCaptureAndAnalyze() => null;
-
-    public void Dispose() { }
-}
-#endif
