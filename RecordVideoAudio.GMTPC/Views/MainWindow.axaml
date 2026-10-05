@@ -9,7 +9,7 @@
         MinWidth="850" MinHeight="620"
         WindowStartupLocation="CenterScreen"
         x:Class="RecordVideoAudio.GMTPC.Views.MainWindow"
-        Icon="/Assets/avalonia-logo.ico"
+        Icon="/Assets/app-icon.ico"
         Background="#0B0F19"
         Title="Record Video Audio - MultiOS - GMTPC">
         <views:MainView />
